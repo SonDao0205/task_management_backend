@@ -7,7 +7,7 @@ import { errorHandler } from "./exception/error_handler.js";
 import { NotFound } from "./exception/errors.js";
 import { authRouter } from "./router/authRouter.js";
 import { redisClient } from "./config/redis.js";
-import BlackListRepository from "./repository/blacklist.repository.js";
+import { workspaceRouter } from "./router/workspaceRouter.js";
 
 const bootstrap = async () => {
   const app = express();
@@ -20,6 +20,7 @@ const bootstrap = async () => {
   const prefix = "/api/v1";
   app.use(prefix, userRouter);
   app.use(prefix, authRouter);
+  app.use(prefix, workspaceRouter);
 
   app.use((_req, _res, next) => {
     next(new NotFound("API endpoint not found"));
@@ -47,8 +48,6 @@ const bootstrap = async () => {
   }
 
   app.listen(PORT, () => {
-    console.log("test : ", String([123123, 123123213]));
-
     console.log(`Server is running in port : ${PORT} `);
   });
 
