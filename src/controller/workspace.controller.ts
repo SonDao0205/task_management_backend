@@ -1,7 +1,10 @@
 import type { Request, Response } from "express";
 import WorkSpaceService from "../service/workspace.service.js";
 import type { ApiResponseData } from "../types/dto/res/response.js";
-import type { WorkSpace } from "../types/entity/workspace.types.js";
+import type {
+  WorkSpace,
+  WorkSpaceMember,
+} from "../types/entity/workspace.types.js";
 
 export class WorkSpaceController {
   private static instance: WorkSpaceController;
@@ -44,6 +47,22 @@ export class WorkSpaceController {
     return res.status(201).json({
       success: true,
       message: "Tạo Workspace thành công!",
+      data: response,
+    });
+  };
+
+  addMemberToWorkspace = async (
+    req: Request,
+    res: Response<ApiResponseData<WorkSpaceMember>>,
+  ) => {
+    const user_id = req.auth?.user_id;
+    const response = await this.workSpaceService.addMember(
+      String(user_id),
+      req.body,
+    );
+    return res.status(201).json({
+      success: true,
+      message: "Thêm thành viên thành công!",
       data: response,
     });
   };

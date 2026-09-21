@@ -1,10 +1,14 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, type UUID } from "node:crypto";
 import { pool } from "../config/database.js";
 import type {
   WorkSpaceMemberRequest,
   WorkSpaceRequest,
 } from "../types/dto/req/workspace.request.js";
-import type { WorkSpace } from "../types/entity/workspace.types.js";
+import {
+  WorkSpaceMemberRole,
+  type WorkSpace,
+  type WorkSpaceMember,
+} from "../types/entity/workspace.types.js";
 import { BadRequest } from "../exception/errors.js";
 import type { PoolClient } from "pg";
 
@@ -44,7 +48,9 @@ export class WorkSpaceRepository {
     return result.rows[0] ?? null;
   };
 
-  createWorkspaceMember = async (dto: WorkSpaceMemberRequest) => {
+  addMemberToWorkspace = async (
+    dto: WorkSpaceMemberRequest,
+  ): Promise<WorkSpaceMember> => {
     const { role, status, member_id, workspace_id } = dto;
 
     const query = `
@@ -92,6 +98,23 @@ export class WorkSpaceRepository {
       throw new BadRequest("Tạo Workspace thất bại!");
     } finally {
       client.release();
+    }
+  };
+
+  isOwner = async (user_id: string, workspace_id: string) => {
+    try {
+      const query = `
+    select member_id, workspace_id , role 
+    from workspace_members
+    where member_id = $1 AND workspace_id = $2 AND role = $3
+    `;
+      const value = [user_id, workspace_id, WorkSpaceMemberRole.OWNER];
+
+      const result = await pool.query(query, value);
+
+      return result.rows[0] ?? null;
+    } catch (error) {
+      console.log("Error : ", error);
     }
   };
 }

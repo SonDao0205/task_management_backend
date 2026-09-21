@@ -86,7 +86,6 @@ class TokenService {
   verifyAccessToken = async (accessToken: string) => {
     const black_list = await this.blackListRepository.getKey("blacklist");
     const isExist = black_list.findIndex((element) => element === accessToken);
-    console.log("index : ", isExist);
 
     if (isExist !== -1) {
       throw new Authenticate("Phiên đăng nhập không hợp lệ hoặc đã hết hạn!");

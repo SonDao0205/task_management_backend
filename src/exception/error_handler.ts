@@ -77,6 +77,6 @@ export const errorHandler: ErrorRequestHandler = (
     success: false,
     message: "Lỗi hệ thống!",
     data: null,
-    error: error.message,
+    error: error,
   });
 };

@@ -10,3 +10,8 @@ workspaceRouter.post(
   authenticate,
   workspaceController.createWorkspace,
 );
+workspaceRouter.post(
+  "/workspaces/add-member",
+  authenticate,
+  workspaceController.addMemberToWorkspace,
+);

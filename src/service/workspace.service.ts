@@ -1,4 +1,4 @@
-import { BadRequest } from "../exception/errors.js";
+import { Authorization, BadRequest } from "../exception/errors.js";
 import WorkSpaceRepository from "../repository/workspace.repository.js";
 import type {
   WorkSpaceMemberRequest,
@@ -8,6 +8,7 @@ import {
   WorkSpaceMemberRole,
   WorkSpaceMemberStatus,
   type WorkSpace,
+  type WorkSpaceMember,
 } from "../types/entity/workspace.types.js";
 
 export class WorkSpaceService {
@@ -45,12 +46,39 @@ export class WorkSpaceService {
       member_id: user_id,
     };
 
-    console.log("owner : ", ownerMember);
-
     const createWorkspace: WorkSpace =
       await this.workSpaceRepository.createWorkspaceWithOwner(dto, ownerMember);
 
     return createWorkspace;
+  };
+
+  addMember = async (
+    owner_id: string,
+    dto: WorkSpaceMemberRequest,
+  ): Promise<WorkSpaceMember> => {
+    const { role, status, member_id, workspace_id } = dto;
+    if (!role || !status || !member_id || !workspace_id) {
+      throw new BadRequest("Vui lòng nhập đầy đủ thông tin!");
+    }
+
+    const isOwner = await this.workSpaceRepository.isOwner(
+      owner_id,
+      workspace_id,
+    );
+
+    if (member_id == owner_id) {
+      throw new BadRequest("Bạn không thể thêm bản thân!");
+    }
+
+    if (!isOwner) {
+      throw new Authorization(
+        "Bạn không đủ thẩm quyền thực hiện chức năng này!",
+      );
+    }
+
+    const member = await this.workSpaceRepository.addMemberToWorkspace(dto);
+
+    return member;
   };
 }
 
