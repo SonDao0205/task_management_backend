@@ -134,32 +134,106 @@ export class WorkSpaceRepository {
     status: WorkSpaceMemberStatus,
     role: WorkSpaceMemberRole,
   ) => {
-    const query = `
-    UPDATE workspace_members
-    SET status = $3 , role = $4
-    WHERE member_id = $1 AND workspace_id = $2
-    RETURNING id,role,status,joined_at,created_at,updated_at,member_id,workspace_id
-    `;
+    const client = await pool.connect();
 
-    const value = [member_id, workspace_id, status, role];
+    try {
+      await client.query("BEGIN");
 
-    const result = await pool.query(query, value);
+      await client.query(
+        `
+        SELECT id
+        FROM workspace
+        WHERE id = $1
+        FOR UPDATE
+        `,
+        [workspace_id],
+      );
 
-    return result.rows[0] ?? null;
+      const result = await client.query(
+        `
+        UPDATE workspace_members
+        SET status = $3, role = $4
+        WHERE member_id = $1 AND workspace_id = $2
+        RETURNING id,role,status,joined_at,created_at,updated_at,member_id,workspace_id
+        `,
+        [member_id, workspace_id, status, role],
+      );
+
+      const ownerResult = await client.query(
+        `
+        SELECT EXISTS (
+          SELECT 1
+          FROM workspace_members
+          WHERE workspace_id = $1 AND role = $2
+        ) AS has_owner
+        `,
+        [workspace_id, WorkSpaceMemberRole.OWNER],
+      );
+
+      if (!ownerResult.rows[0]?.has_owner) {
+        throw new BadRequest("Workspace phải có ít nhất một owner!");
+      }
+
+      await client.query("COMMIT");
+
+      return result.rows[0] ?? null;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   };
 
   deleteMember = async (member_id: string, workspace_id: string) => {
-    const query = `
-    DELETE FROM workspace_members
-    WHERE member_id = $1 AND workspace_id = $2
-    RETURNING id,role,status,joined_at,created_at,updated_at,member_id,workspace_id
-    `;
+    const client = await pool.connect();
 
-    const value = [member_id, workspace_id];
+    try {
+      await client.query("BEGIN");
 
-    const result = await pool.query(query, value);
+      await client.query(
+        `
+        SELECT id
+        FROM workspace
+        WHERE id = $1
+        FOR UPDATE
+        `,
+        [workspace_id],
+      );
 
-    return result.rows[0] ?? null;
+      const result = await client.query(
+        `
+        DELETE FROM workspace_members
+        WHERE member_id = $1 AND workspace_id = $2
+        RETURNING id,role,status,joined_at,created_at,updated_at,member_id,workspace_id
+        `,
+        [member_id, workspace_id],
+      );
+
+      const ownerResult = await client.query(
+        `
+        SELECT EXISTS (
+          SELECT 1
+          FROM workspace_members
+          WHERE workspace_id = $1 AND role = $2
+        ) AS has_owner
+        `,
+        [workspace_id, WorkSpaceMemberRole.OWNER],
+      );
+
+      if (!ownerResult.rows[0]?.has_owner) {
+        throw new BadRequest("Workspace phải có ít nhất một owner!");
+      }
+
+      await client.query("COMMIT");
+
+      return result.rows[0] ?? null;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   };
 }
 
