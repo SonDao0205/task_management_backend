@@ -20,8 +20,6 @@ class UserController {
 
   getAllUser = async (req: Request, res: Response<ApiResponseData<User[]>>) => {
     const user_id = req.auth?.user_id;
-    console.log("user_id 1 : ", user_id);
-    console.log("user_id 2 : ", typeof user_id);
     const response = await this.userService.getAllUsers();
     return res.status(200).json({
       success: true,

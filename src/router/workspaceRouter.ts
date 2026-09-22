@@ -15,3 +15,15 @@ workspaceRouter.post(
   authenticate,
   workspaceController.addMemberToWorkspace,
 );
+
+workspaceRouter.patch(
+  "/workspaces/member/:memberId/:workspaceId",
+  authenticate,
+  workspaceController.updateMember,
+);
+
+workspaceRouter.delete(
+  "/workspaces/member/delete/:memberId/:workspaceId",
+  authenticate,
+  workspaceController.deleteMemberToWorkspace,
+);

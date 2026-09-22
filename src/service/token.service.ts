@@ -55,8 +55,6 @@ class TokenService {
       });
       return { payload };
     } catch (error) {
-      console.log("error : ", error);
-
       throw new Authenticate("Phiên đăng nhập không hợp lệ hoặc đã hết hạn!");
     }
   };

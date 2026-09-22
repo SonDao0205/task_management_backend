@@ -1,9 +1,9 @@
 import type { Request, Response } from "express";
 import WorkSpaceService from "../service/workspace.service.js";
 import type { ApiResponseData } from "../types/dto/res/response.js";
-import type {
-  WorkSpace,
-  WorkSpaceMember,
+import {
+  type WorkSpace,
+  type WorkSpaceMember,
 } from "../types/entity/workspace.types.js";
 
 export class WorkSpaceController {
@@ -63,6 +63,45 @@ export class WorkSpaceController {
     return res.status(201).json({
       success: true,
       message: "Thêm thành viên thành công!",
+      data: response,
+    });
+  };
+
+  deleteMemberToWorkspace = async (
+    req: Request,
+    res: Response<ApiResponseData<null>>,
+  ) => {
+    const user_id = req.auth?.user_id;
+    const { memberId, workspaceId } = req.params;
+    const response = await this.workSpaceService.deleteMember(
+      String(user_id),
+      String(memberId),
+      String(workspaceId),
+    );
+    return res.status(200).json({
+      success: true,
+      message: "Xoá thành viên thành công!",
+      data: null,
+    });
+  };
+
+  updateMember = async (
+    req: Request,
+    res: Response<ApiResponseData<WorkSpaceMember>>,
+  ) => {
+    const user_id = req.auth?.user_id;
+    const { memberId, workspaceId } = req.params;
+    const { status, role } = req.body;
+    const response = await this.workSpaceService.updateMember(String(user_id), {
+      member_id: String(memberId),
+      workspace_id: String(workspaceId),
+      status,
+      role,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Cập nhật trạng thái thành công!",
       data: response,
     });
   };

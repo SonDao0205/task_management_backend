@@ -16,3 +16,10 @@ export type WorkSpaceMemberRequest = {
   member_id: string;
   workspace_id?: string;
 };
+
+export type WorkSpaceMemberUpdate = {
+  member_id: string;
+  workspace_id: string;
+  status: WorkSpaceMemberStatus;
+  role: WorkSpaceMemberRole;
+};

@@ -6,6 +6,7 @@ import type {
 } from "../types/dto/req/workspace.request.js";
 import {
   WorkSpaceMemberRole,
+  WorkSpaceMemberStatus,
   type WorkSpace,
   type WorkSpaceMember,
 } from "../types/entity/workspace.types.js";
@@ -102,20 +103,63 @@ export class WorkSpaceRepository {
   };
 
   isOwner = async (user_id: string, workspace_id: string) => {
-    try {
-      const query = `
+    const query = `
     select member_id, workspace_id , role 
     from workspace_members
     where member_id = $1 AND workspace_id = $2 AND role = $3
     `;
-      const value = [user_id, workspace_id, WorkSpaceMemberRole.OWNER];
+    const value = [user_id, workspace_id, WorkSpaceMemberRole.OWNER];
 
-      const result = await pool.query(query, value);
+    const result = await pool.query(query, value);
 
-      return result.rows[0] ?? null;
-    } catch (error) {
-      console.log("Error : ", error);
-    }
+    return result.rows[0] ?? null;
+  };
+
+  existInWorkspace = async (member_id: string, workspace_id: string) => {
+    const query = `
+    SELECT member_id, workspace_id FROM workspace_members 
+    WHERE member_id = $1 AND workspace_id = $2
+    `;
+
+    const value = [member_id, workspace_id];
+
+    const result = await pool.query(query, value);
+
+    return result.rows[0] ?? null;
+  };
+
+  updateStatus = async (
+    member_id: string,
+    workspace_id: string,
+    status: WorkSpaceMemberStatus,
+    role: WorkSpaceMemberRole,
+  ) => {
+    const query = `
+    UPDATE workspace_members
+    SET status = $3 , role = $4
+    WHERE member_id = $1 AND workspace_id = $2
+    RETURNING id,role,status,joined_at,created_at,updated_at,member_id,workspace_id
+    `;
+
+    const value = [member_id, workspace_id, status, role];
+
+    const result = await pool.query(query, value);
+
+    return result.rows[0] ?? null;
+  };
+
+  deleteMember = async (member_id: string, workspace_id: string) => {
+    const query = `
+    DELETE FROM workspace_members
+    WHERE member_id = $1 AND workspace_id = $2
+    RETURNING id,role,status,joined_at,created_at,updated_at,member_id,workspace_id
+    `;
+
+    const value = [member_id, workspace_id];
+
+    const result = await pool.query(query, value);
+
+    return result.rows[0] ?? null;
   };
 }
 

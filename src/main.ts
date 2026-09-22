@@ -8,6 +8,7 @@ import { NotFound } from "./exception/errors.js";
 import { authRouter } from "./router/authRouter.js";
 import { redisClient } from "./config/redis.js";
 import { workspaceRouter } from "./router/workspaceRouter.js";
+import { logger } from "./middleware/logger.js";
 
 const bootstrap = async () => {
   const app = express();
@@ -15,6 +16,7 @@ const bootstrap = async () => {
 
   app.use(cors());
   app.use(express.json());
+  app.use(logger);
 
   // router
   const prefix = "/api/v1";

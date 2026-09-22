@@ -2,6 +2,7 @@ import { Authorization, BadRequest } from "../exception/errors.js";
 import WorkSpaceRepository from "../repository/workspace.repository.js";
 import type {
   WorkSpaceMemberRequest,
+  WorkSpaceMemberUpdate,
   WorkSpaceRequest,
 } from "../types/dto/req/workspace.request.js";
 import {
@@ -52,6 +53,34 @@ export class WorkSpaceService {
     return createWorkspace;
   };
 
+  validPermission = async (
+    owner_id: string,
+    member_id: string,
+    workspace_id: string,
+  ) => {
+    const isOwner = await this.workSpaceRepository.isOwner(
+      owner_id,
+      workspace_id,
+    );
+
+    if (isOwner == null) {
+      throw new Authorization(
+        "Bạn không đủ thẩm quyền thực hiện chức năng này!",
+      );
+    }
+
+    const isExistInWorkspace = await this.workSpaceRepository.existInWorkspace(
+      member_id,
+      workspace_id,
+    );
+
+    if (isExistInWorkspace == null) {
+      throw new Authorization("Người dùng không tồn tại trong workspace!");
+    }
+
+    return true;
+  };
+
   addMember = async (
     owner_id: string,
     dto: WorkSpaceMemberRequest,
@@ -70,7 +99,7 @@ export class WorkSpaceService {
       throw new BadRequest("Bạn không thể thêm bản thân!");
     }
 
-    if (!isOwner) {
+    if (isOwner == null) {
       throw new Authorization(
         "Bạn không đủ thẩm quyền thực hiện chức năng này!",
       );
@@ -79,6 +108,47 @@ export class WorkSpaceService {
     const member = await this.workSpaceRepository.addMemberToWorkspace(dto);
 
     return member;
+  };
+
+  deleteMember = async (
+    owner_id: string,
+    member_id: string,
+    workspace_id: string,
+  ) => {
+    if (!owner_id || !member_id || !workspace_id) {
+      throw new BadRequest("Vui lòng nhập đầy đủ thông tin!");
+    }
+
+    if (member_id == owner_id) {
+      throw new BadRequest("Bạn không thể xoá bản thân!");
+    }
+
+    await this.validPermission(owner_id, member_id, workspace_id);
+
+    const deletedMember = await this.workSpaceRepository.deleteMember(
+      member_id,
+      workspace_id,
+    );
+
+    return deletedMember;
+  };
+
+  updateMember = async (owner_id: string, dto: WorkSpaceMemberUpdate) => {
+    const { member_id, workspace_id, status, role } = dto;
+    if (!owner_id || !member_id || !workspace_id || !status || !role) {
+      throw new BadRequest("Vui lòng nhập đầy đủ thông tin!");
+    }
+
+    await this.validPermission(owner_id, member_id, workspace_id);
+
+    const updatedMember = await this.workSpaceRepository.updateStatus(
+      member_id,
+      workspace_id,
+      status,
+      role,
+    );
+
+    return updatedMember;
   };
 }
 
