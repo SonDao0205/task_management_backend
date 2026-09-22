@@ -9,6 +9,7 @@ import { authRouter } from "./router/authRouter.js";
 import { redisClient } from "./config/redis.js";
 import { workspaceRouter } from "./router/workspaceRouter.js";
 import { logger } from "./middleware/logger.js";
+import { taskRouter } from "./router/taskRouter.js";
 
 const bootstrap = async () => {
   const app = express();
@@ -23,6 +24,7 @@ const bootstrap = async () => {
   app.use(prefix, userRouter);
   app.use(prefix, authRouter);
   app.use(prefix, workspaceRouter);
+  app.use(prefix, taskRouter);
 
   app.use((_req, _res, next) => {
     next(new NotFound("API endpoint not found"));

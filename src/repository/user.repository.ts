@@ -1,5 +1,6 @@
 import { randomUUID, type UUID } from "node:crypto";
 import { pool } from "../config/database.js";
+import { BadRequest } from "../exception/errors.js";
 import {
   UserStatus,
   type User,
@@ -69,9 +70,25 @@ class UserRepository {
       UserStatus.ACTIVE,
     ];
 
-    const result = await pool.query(query, value);
+    try {
+      const result = await pool.query(query, value);
 
-    return (result.rows[0] as User) ?? null;
+      return (result.rows[0] as User) ?? null;
+    } catch (error) {
+      if (error instanceof Error && "constraint" in error) {
+        const details = "details" in error ? error.details : undefined;
+
+        if (error.constraint === "email_unq") {
+          throw new BadRequest("Email đã tồn tại!", details);
+        }
+
+        if (error.constraint === "phone_unq") {
+          throw new BadRequest("Số điện thoại đã tồn tại!", details);
+        }
+      }
+
+      throw error;
+    }
   };
 
   getAllUsers = async () => {

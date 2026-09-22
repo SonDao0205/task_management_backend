@@ -53,56 +53,6 @@ export const errorHandler: ErrorRequestHandler = (
     return;
   }
 
-  if (error.constraint === "email_unq") {
-    res.status(400).json({
-      success: false,
-      message: "Email đã tồn tại!",
-      data: null,
-      error: String(error.details),
-    });
-    return;
-  }
-
-  if (error.constraint === "phone_unq") {
-    res.status(400).json({
-      success: false,
-      message: "Số điện thoại đã tồn tại!",
-      data: null,
-      error: String(error.details),
-    });
-    return;
-  }
-
-  if (error.constraint === "exist_member") {
-    res.status(400).json({
-      success: false,
-      message: "Người dùng đã tồn tại trong workspace!",
-      data: null,
-      error: String(error.details),
-    });
-    return;
-  }
-
-  if (error.constraint === "status") {
-    res.status(400).json({
-      success: false,
-      message: "Trạng thái không hợp lệ!",
-      data: null,
-      error: String(error.details),
-    });
-    return;
-  }
-
-  if (error.constraint === "role_check") {
-    res.status(400).json({
-      success: false,
-      message: "Quyền hạn không hợp lệ!",
-      data: null,
-      error: String(error.details),
-    });
-    return;
-  }
-
   res.status(500).json({
     success: false,
     message: "Lỗi hệ thống!",

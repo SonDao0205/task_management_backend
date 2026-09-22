@@ -62,9 +62,32 @@ export class WorkSpaceRepository {
 
     const value = [randomUUID(), role, status, member_id, workspace_id];
 
-    const result = await pool.query(query, value);
+    try {
+      const result = await pool.query(query, value);
 
-    return result.rows[0] ?? null;
+      return result.rows[0] ?? null;
+    } catch (error) {
+      if (error instanceof Error && "constraint" in error) {
+        const details = "details" in error ? error.details : undefined;
+
+        if (error.constraint === "exist_member") {
+          throw new BadRequest(
+            "Người dùng đã tồn tại trong workspace!",
+            details,
+          );
+        }
+
+        if (error.constraint === "status") {
+          throw new BadRequest("Trạng thái không hợp lệ!", details);
+        }
+
+        if (error.constraint === "role_check") {
+          throw new BadRequest("Quyền hạn không hợp lệ!", details);
+        }
+      }
+
+      throw error;
+    }
   };
 
   createWorkspaceWithOwner = async (
@@ -95,6 +118,26 @@ export class WorkSpaceRepository {
       return workspace;
     } catch (error) {
       await client.query("ROLLBACK");
+
+      if (error instanceof Error && "constraint" in error) {
+        const details = "details" in error ? error.details : undefined;
+
+        if (error.constraint === "exist_member") {
+          throw new BadRequest(
+            "Người dùng đã tồn tại trong workspace!",
+            details,
+          );
+        }
+
+        if (error.constraint === "status") {
+          throw new BadRequest("Trạng thái không hợp lệ!", details);
+        }
+
+        if (error.constraint === "role_check") {
+          throw new BadRequest("Quyền hạn không hợp lệ!", details);
+        }
+      }
+
       console.log("Error : ", error);
       throw new BadRequest("Tạo Workspace thất bại!");
     } finally {
@@ -179,6 +222,19 @@ export class WorkSpaceRepository {
       return result.rows[0] ?? null;
     } catch (error) {
       await client.query("ROLLBACK");
+
+      if (error instanceof Error && "constraint" in error) {
+        const details = "details" in error ? error.details : undefined;
+
+        if (error.constraint === "status") {
+          throw new BadRequest("Trạng thái không hợp lệ!", details);
+        }
+
+        if (error.constraint === "role_check") {
+          throw new BadRequest("Quyền hạn không hợp lệ!", details);
+        }
+      }
+
       throw error;
     } finally {
       client.release();
