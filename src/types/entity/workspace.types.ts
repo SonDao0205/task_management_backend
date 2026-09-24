@@ -35,3 +35,12 @@ export type WorkSpaceMember = {
   created_at: Date;
   updated_at: Date | null;
 };
+
+/** Dạng dữ liệu phẳng được trả về trực tiếp từ bảng workspace_members. */
+export type WorkSpaceMemberRecord = {
+  id: string;
+  role: WorkSpaceMemberRole;
+  status: WorkSpaceMemberStatus;
+  member_id: string;
+  workspace_id: string;
+};
