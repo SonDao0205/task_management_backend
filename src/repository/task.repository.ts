@@ -347,7 +347,9 @@ class TaskRepository {
       );
 
       if (result.rows.length !== member_ids.length) {
-        throw new NotFound("Một hoặc nhiều thành viên chưa được giao task này!");
+        throw new NotFound(
+          "Một hoặc nhiều thành viên chưa được giao task này!",
+        );
       }
 
       await client.query("COMMIT");
@@ -358,6 +360,17 @@ class TaskRepository {
     } finally {
       client.release();
     }
+  };
+
+  deleteMember = async (task_id: string, workspace_id: string) => {
+    const query = `
+    DELETE FROM task
+    WHERE workspace_id = $1 AND id = $2
+    `;
+
+    const value = [workspace_id, task_id];
+
+    const result = await pool.query(query, value);
   };
 }
 

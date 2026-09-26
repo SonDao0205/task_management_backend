@@ -40,10 +40,7 @@ class TaskController {
     });
   };
 
-  update = async (
-    req: Request,
-    res: Response<ApiResponseData<Task>>,
-  ) => {
+  update = async (req: Request, res: Response<ApiResponseData<Task>>) => {
     const task = await this.taskService.updateTask(
       String(req.params.taskId),
       req.body,
@@ -88,6 +85,22 @@ class TaskController {
       success: true,
       message: "Bỏ giao task cho thành viên thành công!",
       data: assignments,
+    });
+  };
+
+  deleteTask = async (req: Request, res: Response<ApiResponseData<null>>) => {
+    const user_id = req.auth?.user_id;
+    const { taskId, workspaceId } = req.params;
+    const response = await this.taskService.deleteTask(
+      String(user_id),
+      String(taskId),
+      String(workspaceId),
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Xoá task thành công!",
+      data: null,
     });
   };
 }

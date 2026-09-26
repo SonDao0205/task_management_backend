@@ -118,7 +118,9 @@ class TaskService {
     return uniqueMemberIds;
   };
 
-  private getTaskOrThrow = async (task_id: string): Promise<TaskWithAssignees> => {
+  private getTaskOrThrow = async (
+    task_id: string,
+  ): Promise<TaskWithAssignees> => {
     this.validateId(task_id, "Task");
     const task = await this.taskRepository.findById(task_id);
     if (!task) {
@@ -151,10 +153,7 @@ class TaskService {
     }
   };
 
-  createTask = async (
-    dto: CreateTaskRequest,
-    actor_user_id: string,
-  ) => {
+  createTask = async (dto: CreateTaskRequest, actor_user_id: string) => {
     if (!dto || typeof dto !== "object") {
       throw new BadRequest("Dữ liệu task không hợp lệ!");
     }
@@ -205,11 +204,11 @@ class TaskService {
         );
       }
       if (
-        members.some(
-          ({ status }) => status !== WorkSpaceMemberStatus.ACTIVE,
-        )
+        members.some(({ status }) => status !== WorkSpaceMemberStatus.ACTIVE)
       ) {
-        throw new BadRequest("Chỉ được giao task cho thành viên đang hoạt động!");
+        throw new BadRequest(
+          "Chỉ được giao task cho thành viên đang hoạt động!",
+        );
       }
     }
 
@@ -254,9 +253,7 @@ class TaskService {
         "Một hoặc nhiều thành viên không tồn tại trong workspace!",
       );
     }
-    if (
-      members.some(({ status }) => status !== WorkSpaceMemberStatus.ACTIVE)
-    ) {
+    if (members.some(({ status }) => status !== WorkSpaceMemberStatus.ACTIVE)) {
       throw new BadRequest("Chỉ được giao task cho thành viên đang hoạt động!");
     }
 
@@ -320,7 +317,9 @@ class TaskService {
         throw new Authorization("Bạn không có quyền cập nhật task này!");
       }
       if (!task.member_ids.includes(actor.id)) {
-        throw new Authorization("Bạn chỉ được cập nhật task được giao cho mình!");
+        throw new Authorization(
+          "Bạn chỉ được cập nhật task được giao cho mình!",
+        );
       }
       if (inputFields.length !== 1 || inputFields[0] !== "status") {
         throw new Authorization("Member chỉ được cập nhật trạng thái task!");
@@ -367,11 +366,34 @@ class TaskService {
     if (dto.start_at !== undefined) updateData.start_at = start_at;
     if (dto.end_at !== undefined) updateData.end_at = end_at;
 
-    const updatedTask = await this.taskRepository.updateTask(task.id, updateData);
+    const updatedTask = await this.taskRepository.updateTask(
+      task.id,
+      updateData,
+    );
     if (!updatedTask) {
       throw new NotFound("Task không tồn tại!");
     }
     return updatedTask;
+  };
+
+  deleteTask = async (
+    actor_id: string,
+    task_id: string,
+    workspace_id: string,
+  ) => {
+    const actor = await this.getActiveActor(actor_id, workspace_id);
+
+    const task = await this.getTaskOrThrow(task_id);
+    const isManager = MANAGER_ROLES.has(actor.role);
+
+    if (!isManager) {
+      throw new Authorization("Bạn không có quyền thực hiện việc này!");
+    }
+
+    const deletedTask = await this.taskRepository.deleteMember(
+      task_id,
+      workspace_id,
+    );
   };
 }
 

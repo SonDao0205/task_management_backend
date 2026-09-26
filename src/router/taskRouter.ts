@@ -17,3 +17,9 @@ taskRouter.delete(
   authenticate,
   taskController.unassignMembers,
 );
+
+taskRouter.delete(
+  "/tasks/:taskId/:workspaceId/delete",
+  authenticate,
+  taskController.deleteTask,
+);
