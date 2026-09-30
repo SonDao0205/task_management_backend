@@ -10,6 +10,19 @@ export type WorkSpaceRequest = {
   status?: WorkSpaceStatus;
 };
 
+export type WorkSpaceUpdateRequest = {
+  name?: string;
+  description?: string;
+  status?: WorkSpaceStatus;
+};
+
+export type WorkSpaceMemberCreateRequest = {
+  email?: string;
+  member_id?: string;
+  role?: WorkSpaceMemberRole;
+  status?: WorkSpaceMemberStatus;
+};
+
 export type WorkSpaceMemberRequest = {
   role: WorkSpaceMemberRole;
   status: WorkSpaceMemberStatus;

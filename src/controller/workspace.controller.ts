@@ -1,16 +1,18 @@
 import type { Request, Response } from "express";
 import WorkSpaceService from "../service/workspace.service.js";
 import type { ApiResponseData } from "../types/dto/res/response.js";
-import {
-  type WorkSpace,
-  type WorkSpaceMember,
+import type {
+  WorkSpaceDetail,
+  WorkSpaceMemberDto,
+  WorkSpaceMemberRecord,
+  WorkSpaceSummary,
 } from "../types/entity/workspace.types.js";
 
-export class WorkSpaceController {
+class WorkSpaceController {
   private static instance: WorkSpaceController;
   private readonly workSpaceService: WorkSpaceService;
 
-  constructor() {
+  private constructor() {
     this.workSpaceService = WorkSpaceService.getInstance();
   }
 
@@ -18,65 +20,171 @@ export class WorkSpaceController {
     if (!WorkSpaceController.instance) {
       WorkSpaceController.instance = new WorkSpaceController();
     }
-    return this.instance;
+    return WorkSpaceController.instance;
   };
 
   getAll = async (
     req: Request,
-    res: Response<ApiResponseData<WorkSpace[]>>,
+    res: Response<ApiResponseData<WorkSpaceSummary[]>>,
   ) => {
-    const response = await this.workSpaceService.getAll();
+    const data = await this.workSpaceService.getAll(String(req.auth?.user_id));
     return res.status(200).json({
       success: true,
-      message: "Lấy danh sách Workspace thành công!",
-      data: response,
+      message: "Lấy danh sách workspace thành công!",
+      data,
+    });
+  };
+
+  getById = async (
+    req: Request,
+    res: Response<ApiResponseData<WorkSpaceDetail>>,
+  ) => {
+    const data = await this.workSpaceService.getById(
+      String(req.params.workspaceId),
+      String(req.auth?.user_id),
+    );
+    return res.status(200).json({
+      success: true,
+      message: "Lấy thông tin workspace thành công!",
+      data,
     });
   };
 
   createWorkspace = async (
     req: Request,
-    res: Response<ApiResponseData<WorkSpace>>,
+    res: Response<ApiResponseData<WorkSpaceDetail>>,
   ) => {
-    const user_id = req.auth?.user_id;
-    const body = req.body;
-    const response = await this.workSpaceService.createWorkspace(
-      body,
-      String(user_id),
+    const data = await this.workSpaceService.createWorkspace(
+      req.body,
+      String(req.auth?.user_id),
     );
-
     return res.status(201).json({
       success: true,
-      message: "Tạo Workspace thành công!",
-      data: response,
+      message: "Tạo workspace thành công!",
+      data,
     });
   };
 
-  addMemberToWorkspace = async (
+  updateWorkspace = async (
     req: Request,
-    res: Response<ApiResponseData<WorkSpaceMember>>,
+    res: Response<ApiResponseData<WorkSpaceDetail>>,
   ) => {
-    const user_id = req.auth?.user_id;
-    const response = await this.workSpaceService.addMember(
-      String(user_id),
+    const data = await this.workSpaceService.updateWorkspace(
+      String(req.params.workspaceId),
+      String(req.auth?.user_id),
+      req.body,
+    );
+    return res.status(200).json({
+      success: true,
+      message: "Cập nhật workspace thành công!",
+      data,
+    });
+  };
+
+  deleteWorkspace = async (
+    req: Request,
+    res: Response<ApiResponseData<null>>,
+  ) => {
+    await this.workSpaceService.deleteWorkspace(
+      String(req.params.workspaceId),
+      String(req.auth?.user_id),
+    );
+    return res.status(200).json({
+      success: true,
+      message: "Xoá workspace thành công!",
+      data: null,
+    });
+  };
+
+  getMembers = async (
+    req: Request,
+    res: Response<ApiResponseData<WorkSpaceMemberDto[]>>,
+  ) => {
+    const data = await this.workSpaceService.getMembers(
+      String(req.params.workspaceId),
+      String(req.auth?.user_id),
+    );
+    return res.status(200).json({
+      success: true,
+      message: "Lấy danh sách thành viên thành công!",
+      data,
+    });
+  };
+
+  addMember = async (
+    req: Request,
+    res: Response<ApiResponseData<WorkSpaceMemberRecord>>,
+  ) => {
+    const data = await this.workSpaceService.addMember(
+      String(req.auth?.user_id),
+      String(req.params.workspaceId),
       req.body,
     );
     return res.status(201).json({
       success: true,
       message: "Thêm thành viên thành công!",
-      data: response,
+      data,
     });
   };
 
-  deleteMemberToWorkspace = async (
+  addMemberLegacy = async (
+    req: Request,
+    res: Response<ApiResponseData<WorkSpaceMemberRecord>>,
+  ) => {
+    const data = await this.workSpaceService.addMember(
+      String(req.auth?.user_id),
+      String(req.body?.workspace_id),
+      req.body,
+    );
+    return res.status(201).json({
+      success: true,
+      message: "Thêm thành viên thành công!",
+      data,
+    });
+  };
+
+  updateMember = async (
+    req: Request,
+    res: Response<ApiResponseData<WorkSpaceMemberRecord>>,
+  ) => {
+    const data = await this.workSpaceService.updateMember(
+      String(req.auth?.user_id),
+      String(req.params.workspaceId),
+      String(req.params.memberId),
+      req.body,
+    );
+    return res.status(200).json({
+      success: true,
+      message: "Cập nhật thành viên thành công!",
+      data,
+    });
+  };
+
+  updateMemberLegacy = async (
+    req: Request,
+    res: Response<ApiResponseData<WorkSpaceMemberRecord>>,
+  ) => {
+    const data = await this.workSpaceService.updateMemberByUserId(
+      String(req.auth?.user_id),
+      String(req.params.workspaceId),
+      String(req.params.memberId),
+      req.body,
+    );
+    return res.status(200).json({
+      success: true,
+      message: "Cập nhật thành viên thành công!",
+      data,
+    });
+  };
+
+  deleteMember = async (
     req: Request,
     res: Response<ApiResponseData<null>>,
   ) => {
-    const user_id = req.auth?.user_id;
-    const { memberId, workspaceId } = req.params;
-    const response = await this.workSpaceService.deleteMember(
-      String(user_id),
-      String(memberId),
-      String(workspaceId),
+    await this.workSpaceService.deleteMember(
+      String(req.auth?.user_id),
+      String(req.params.workspaceId),
+      String(req.params.memberId),
     );
     return res.status(200).json({
       success: true,
@@ -85,24 +193,19 @@ export class WorkSpaceController {
     });
   };
 
-  updateMember = async (
+  deleteMemberLegacy = async (
     req: Request,
-    res: Response<ApiResponseData<WorkSpaceMember>>,
+    res: Response<ApiResponseData<null>>,
   ) => {
-    const user_id = req.auth?.user_id;
-    const { memberId, workspaceId } = req.params;
-    const { status, role } = req.body;
-    const response = await this.workSpaceService.updateMember(String(user_id), {
-      member_id: String(memberId),
-      workspace_id: String(workspaceId),
-      status,
-      role,
-    });
-
+    await this.workSpaceService.deleteMemberByUserId(
+      String(req.auth?.user_id),
+      String(req.params.workspaceId),
+      String(req.params.memberId),
+    );
     return res.status(200).json({
       success: true,
-      message: "Cập nhật trạng thái thành công!",
-      data: response,
+      message: "Xoá thành viên thành công!",
+      data: null,
     });
   };
 }

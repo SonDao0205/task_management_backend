@@ -20,11 +20,31 @@ export enum WorkSpaceMemberStatus {
 export type WorkSpace = {
   id: string;
   name: string;
-  description: string;
+  description: string | null;
   status: WorkSpaceStatus;
   created_at: Date;
-  updated_at: Date;
+  updated_at: Date | null;
 };
+
+export type WorkSpaceMemberDto = {
+  id: string;
+  user_id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: WorkSpaceMemberRole;
+  status: WorkSpaceMemberStatus;
+  joined_at: Date;
+};
+
+export type WorkSpaceSummary = WorkSpace & {
+  role: WorkSpaceMemberRole;
+  member_count: number;
+  task_count: number;
+  members: WorkSpaceMemberDto[];
+};
+
+export type WorkSpaceDetail = WorkSpaceSummary;
 
 export type WorkSpaceMember = {
   member: User;

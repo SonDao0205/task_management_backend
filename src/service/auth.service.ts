@@ -9,7 +9,11 @@ import type {
   LoginResponse,
   RegisterResponse,
 } from "../types/dto/res/auth.response.js";
-import type { User, UserWithPassword } from "../types/entity/user.types.js";
+import type {
+  PublicUser,
+  User,
+  UserWithPassword,
+} from "../types/entity/user.types.js";
 import TokenService from "./token.service.js";
 import type { UUID } from "node:crypto";
 import BlackListRepository from "../repository/blacklist.repository.js";
@@ -92,20 +96,22 @@ class AuthService {
       await this.tokenService.hashRefreshToken(refresh_token),
     );
 
+    const { password: _password, refresh_token: _refreshToken, ...publicUser } =
+      findUser;
     const response: LoginResponse = {
-      user: findUser,
+      user: publicUser,
       access_token: access_token,
-      refresh_token: refresh_token,
     };
     return response;
   };
 
-  getUser = async (user_id: string) => {
-    const user = await this.userRepository.findById(user_id);
+  getUser = async (user_id: string): Promise<PublicUser> => {
+    const user: User = await this.userRepository.findById(user_id);
     if (!user) {
       throw new NotFound("Người dùng không tồn tại!");
     }
-    return user;
+    const { refresh_token: _refreshToken, ...publicUser } = user;
+    return publicUser;
   };
 
   refreshSession = async (user_id: string, refresh_token: string) => {

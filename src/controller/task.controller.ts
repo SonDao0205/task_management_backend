@@ -4,6 +4,7 @@ import type { ApiResponseData } from "../types/dto/res/response.js";
 import type {
   AssignTask,
   Task,
+  TaskListItem,
   TaskWithAssignees,
 } from "../types/entity/task.types.js";
 
@@ -22,7 +23,47 @@ class TaskController {
     return this.instance;
   };
 
-  getAll = async (req: Request, res: Response<ApiResponseData<Task[]>>) => {};
+  getWorkspaceTasks = async (
+    req: Request,
+    res: Response<ApiResponseData<TaskListItem[]>>,
+  ) => {
+    const data = await this.taskService.getWorkspaceTasks(
+      String(req.params.workspaceId),
+      String(req.auth?.user_id),
+    );
+    return res.status(200).json({
+      success: true,
+      message: "Lấy danh sách task thành công!",
+      data,
+    });
+  };
+
+  getMyTasks = async (
+    req: Request,
+    res: Response<ApiResponseData<TaskListItem[]>>,
+  ) => {
+    const data = await this.taskService.getMyTasks(String(req.auth?.user_id));
+    return res.status(200).json({
+      success: true,
+      message: "Lấy danh sách task của bạn thành công!",
+      data,
+    });
+  };
+
+  getById = async (
+    req: Request,
+    res: Response<ApiResponseData<TaskListItem>>,
+  ) => {
+    const data = await this.taskService.getTask(
+      String(req.params.taskId),
+      String(req.auth?.user_id),
+    );
+    return res.status(200).json({
+      success: true,
+      message: "Lấy thông tin task thành công!",
+      data,
+    });
+  };
 
   create = async (
     req: Request,
@@ -89,14 +130,27 @@ class TaskController {
   };
 
   deleteTask = async (req: Request, res: Response<ApiResponseData<null>>) => {
-    const user_id = req.auth?.user_id;
-    const { taskId, workspaceId } = req.params;
-    const response = await this.taskService.deleteTask(
-      String(user_id),
-      String(taskId),
-      String(workspaceId),
+    await this.taskService.deleteTask(
+      String(req.auth?.user_id),
+      String(req.params.taskId),
     );
 
+    return res.status(200).json({
+      success: true,
+      message: "Xoá task thành công!",
+      data: null,
+    });
+  };
+
+  deleteTaskLegacy = async (
+    req: Request,
+    res: Response<ApiResponseData<null>>,
+  ) => {
+    await this.taskService.deleteTask(
+      String(req.auth?.user_id),
+      String(req.params.taskId),
+      String(req.params.workspaceId),
+    );
     return res.status(200).json({
       success: true,
       message: "Xoá task thành công!",

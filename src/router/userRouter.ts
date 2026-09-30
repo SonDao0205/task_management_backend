@@ -5,4 +5,9 @@ import { authenticate } from "../middleware/authenticate.js";
 export const userRouter = Router();
 
 const userController = UserController.getInstance();
-userRouter.get("/users", userController.getAllUser);
+userRouter.get("/users", authenticate, userController.getAllUser);
+userRouter.patch(
+  "/users/me/password",
+  authenticate,
+  userController.changePassword,
+);

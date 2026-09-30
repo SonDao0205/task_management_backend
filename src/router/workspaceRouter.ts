@@ -10,20 +10,39 @@ workspaceRouter.post(
   authenticate,
   workspaceController.createWorkspace,
 );
-workspaceRouter.post(
-  "/workspaces/add-member",
-  authenticate,
-  workspaceController.addMemberToWorkspace,
-);
 
+workspaceRouter.get(
+  "/workspaces/:workspaceId",
+  authenticate,
+  workspaceController.getById,
+);
 workspaceRouter.patch(
-  "/workspaces/member/:memberId/:workspaceId",
+  "/workspaces/:workspaceId",
+  authenticate,
+  workspaceController.updateWorkspace,
+);
+workspaceRouter.delete(
+  "/workspaces/:workspaceId",
+  authenticate,
+  workspaceController.deleteWorkspace,
+);
+workspaceRouter.get(
+  "/workspaces/:workspaceId/members",
+  authenticate,
+  workspaceController.getMembers,
+);
+workspaceRouter.post(
+  "/workspaces/:workspaceId/members",
+  authenticate,
+  workspaceController.addMember,
+);
+workspaceRouter.patch(
+  "/workspaces/:workspaceId/members/:memberId",
   authenticate,
   workspaceController.updateMember,
 );
-
 workspaceRouter.delete(
-  "/workspaces/member/delete/:memberId/:workspaceId",
+  "/workspaces/:workspaceId/members/:memberId",
   authenticate,
-  workspaceController.deleteMemberToWorkspace,
+  workspaceController.deleteMember,
 );

@@ -5,7 +5,7 @@ import type {
   LoginResponse,
   RegisterResponse,
 } from "../types/dto/res/auth.response.js";
-import type { User } from "../types/entity/user.types.js";
+import type { PublicUser } from "../types/entity/user.types.js";
 
 class AuthController {
   private static instance: AuthController;
@@ -46,7 +46,7 @@ class AuthController {
     });
   };
 
-  me = async (req: Request, res: Response<ApiResponseData<User>>) => {
+  me = async (req: Request, res: Response<ApiResponseData<PublicUser>>) => {
     const user_id = req.auth?.user_id;
     const response = await this.authService.getUser(String(user_id));
     return res.status(200).json({

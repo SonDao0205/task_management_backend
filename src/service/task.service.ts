@@ -9,6 +9,7 @@ import type {
 import {
   TaskStatus,
   type Task,
+  type TaskListItem,
   type TaskWithAssignees,
 } from "../types/entity/task.types.js";
 import {
@@ -54,10 +55,6 @@ class TaskService {
       TaskService.instance = new TaskService();
     }
     return this.instance;
-  };
-
-  getAllTask = async (workspace_id: string) => {
-    return this.taskRepository.getAllTask(workspace_id);
   };
 
   private validateId = (value: string, fieldName: string): void => {
@@ -151,6 +148,31 @@ class TaskService {
         "Chỉ owner hoặc master được phép thực hiện thao tác này!",
       );
     }
+  };
+
+  getWorkspaceTasks = async (
+    workspace_id: string,
+    actor_user_id: string,
+  ): Promise<TaskListItem[]> => {
+    this.validateId(workspace_id, "Workspace");
+    await this.getActiveActor(actor_user_id, workspace_id);
+    return this.taskRepository.getAllTask(workspace_id);
+  };
+
+  getMyTasks = async (actor_user_id: string): Promise<TaskListItem[]> => {
+    this.validateId(actor_user_id, "Người dùng");
+    return this.taskRepository.getMyTasks(actor_user_id);
+  };
+
+  getTask = async (
+    task_id: string,
+    actor_user_id: string,
+  ): Promise<TaskListItem> => {
+    const task = await this.getTaskOrThrow(task_id);
+    await this.getActiveActor(actor_user_id, task.workspace_id);
+    const detail = await this.taskRepository.findById(task_id);
+    if (!detail) throw new NotFound("Task không tồn tại!");
+    return detail;
   };
 
   createTask = async (dto: CreateTaskRequest, actor_user_id: string) => {
@@ -379,21 +401,19 @@ class TaskService {
   deleteTask = async (
     actor_id: string,
     task_id: string,
-    workspace_id: string,
-  ) => {
-    const actor = await this.getActiveActor(actor_id, workspace_id);
-
+    expected_workspace_id?: string,
+  ): Promise<void> => {
     const task = await this.getTaskOrThrow(task_id);
-    const isManager = MANAGER_ROLES.has(actor.role);
-
-    if (!isManager) {
-      throw new Authorization("Bạn không có quyền thực hiện việc này!");
+    if (
+      expected_workspace_id !== undefined &&
+      expected_workspace_id !== task.workspace_id
+    ) {
+      throw new BadRequest("Task không thuộc workspace đã cung cấp!");
     }
-
-    const deletedTask = await this.taskRepository.deleteMember(
-      task_id,
-      workspace_id,
-    );
+    const actor = await this.getActiveActor(actor_id, task.workspace_id);
+    this.requireManager(actor);
+    const deletedTask = await this.taskRepository.deleteTask(task_id);
+    if (!deletedTask) throw new NotFound("Task không tồn tại!");
   };
 }
 

@@ -39,14 +39,25 @@ class UserRepository {
     return (result.rows[0] as UserWithPassword) ?? null;
   };
 
-  findById = async (user_id: string) => {
+  findById = async (user_id: string): Promise<User> => {
     const query =
-      "SELECT id,name,email,phone, password,status,refresh_token,created_at,updated_at FROM Users WHERE id = $1";
+      "SELECT id,name,email,phone,status,refresh_token,created_at,updated_at FROM Users WHERE id = $1";
     const value = [user_id];
 
     const result = await pool.query(query, value);
 
     return (result.rows[0] as User) ?? null;
+  };
+
+  findByIdWithPassword = async (
+    user_id: string,
+  ): Promise<UserWithPassword | null> => {
+    const result = await pool.query<UserWithPassword>(
+      `SELECT id,name,email,phone,password,status,refresh_token,created_at,updated_at
+       FROM users WHERE id = $1`,
+      [user_id],
+    );
+    return result.rows[0] ?? null;
   };
 
   createUser = async (
@@ -91,14 +102,34 @@ class UserRepository {
     }
   };
 
-  getAllUsers = async () => {
-    const query = `
-    SELECT id,name,email,phone,status,created_at,updated_at FROM Users
-    `;
-
-    const result = await pool.query(query);
+  getAllUsers = async (search?: string) => {
+    const normalizedSearch = search?.trim() ?? "";
+    const result = await pool.query(
+      `SELECT id,name,email,phone,status,created_at,updated_at
+       FROM users
+       WHERE $1 = ''
+          OR name ILIKE '%' || $1 || '%'
+          OR email ILIKE '%' || $1 || '%'
+          OR phone ILIKE '%' || $1 || '%'
+       ORDER BY name
+       LIMIT 50`,
+      [normalizedSearch],
+    );
 
     return result.rows;
+  };
+
+  updatePassword = async (
+    user_id: string,
+    password: string,
+  ): Promise<boolean> => {
+    const result = await pool.query(
+      `UPDATE users
+       SET password = $2, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [user_id, password],
+    );
+    return (result.rowCount ?? 0) > 0;
   };
 
   updateRefreshToken = async (

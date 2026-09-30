@@ -1,4 +1,4 @@
-import type { User } from "../../entity/user.types.js";
+import type { PublicUser } from "../../entity/user.types.js";
 
 export type RegisterResponse = {
   name: String;
@@ -7,7 +7,6 @@ export type RegisterResponse = {
 };
 
 export type LoginResponse = {
-  user: User;
+  user: PublicUser;
   access_token: string;
-  refresh_token: string;
 };

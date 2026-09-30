@@ -18,8 +18,8 @@ export type Task = {
   end_at: Date;
   status: TaskStatus;
   created_at: Date;
-  updated_at: Date;
-  created_by: string;
+  updated_at: Date | null;
+  created_by: string | null;
   workspace_id: string;
 };
 
@@ -31,4 +31,16 @@ export type AssignTask = {
 
 export type TaskWithAssignees = Task & {
   member_ids: string[];
+};
+
+export type TaskAssignee = {
+  member_id: string;
+  user_id: string;
+  name: string;
+  email: string;
+};
+
+export type TaskListItem = TaskWithAssignees & {
+  assignees: TaskAssignee[];
+  workspace_name?: string;
 };

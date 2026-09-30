@@ -16,7 +16,7 @@ export type User = {
   email: string;
   phone: string;
   status: UserStatus;
-  refresh_token: string;
+  refresh_token: string | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -32,3 +32,5 @@ export type UserSession = {
 export type UserWithPassword = User & {
   password: string;
 };
+
+export type PublicUser = Omit<User, "refresh_token">;

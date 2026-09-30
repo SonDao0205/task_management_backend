@@ -1,294 +1,377 @@
-import { randomUUID, type UUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
+import type { PoolClient } from "pg";
 import { pool } from "../config/database.js";
+import { BadRequest } from "../exception/errors.js";
 import type {
   WorkSpaceMemberRequest,
   WorkSpaceRequest,
+  WorkSpaceUpdateRequest,
 } from "../types/dto/req/workspace.request.js";
 import {
   WorkSpaceMemberRole,
-  WorkSpaceMemberStatus,
   type WorkSpace,
-  type WorkSpaceMember,
+  type WorkSpaceDetail,
+  type WorkSpaceMemberDto,
+  type WorkSpaceMemberRecord,
+  type WorkSpaceMemberStatus,
+  type WorkSpaceSummary,
 } from "../types/entity/workspace.types.js";
-import { BadRequest } from "../exception/errors.js";
-import type { PoolClient } from "pg";
 
-export class WorkSpaceRepository {
+const workspaceSelect = `
+  SELECT
+    w.id, w.name, w.description, w.status, w.created_at, w.updated_at,
+    actor.role,
+    (SELECT COUNT(*)::int FROM workspace_members count_member
+      WHERE count_member.workspace_id = w.id) AS member_count,
+    (SELECT COUNT(*)::int FROM task count_task
+      WHERE count_task.workspace_id = w.id) AS task_count,
+    COALESCE(
+      (
+        SELECT jsonb_agg(
+          jsonb_build_object(
+            'id', member.id,
+            'user_id', member.member_id,
+            'name', users.name,
+            'email', users.email,
+            'phone', users.phone,
+            'role', member.role,
+            'status', member.status,
+            'joined_at', member.joined_at
+          ) ORDER BY member.joined_at
+        )
+        FROM workspace_members member
+        JOIN users ON users.id = member.member_id
+        WHERE member.workspace_id = w.id
+      ),
+      '[]'::jsonb
+    ) AS members
+  FROM workspace w
+  JOIN workspace_members actor ON actor.workspace_id = w.id
+`;
+
+class WorkSpaceRepository {
   private static instance: WorkSpaceRepository;
-
-  constructor() {}
 
   public static getInstance = (): WorkSpaceRepository => {
     if (!WorkSpaceRepository.instance) {
       WorkSpaceRepository.instance = new WorkSpaceRepository();
     }
-    return this.instance;
+    return WorkSpaceRepository.instance;
   };
 
-  findAll = async (): Promise<WorkSpace[]> => {
-    const query =
-      "SELECT id,name,description,status,created_at,updated_at FROM workspace";
-    const result = await pool.query(query);
+  private throwDatabaseError = (error: unknown): never => {
+    if (error instanceof Error && "constraint" in error) {
+      const constraint = String(error.constraint);
+      const details = "detail" in error ? error.detail : undefined;
 
-    return result.rows;
+      if (constraint === "exist_member") {
+        throw new BadRequest("Người dùng đã tồn tại trong workspace!", details);
+      }
+      if (constraint === "status" || constraint === "status_check") {
+        throw new BadRequest("Trạng thái không hợp lệ!", details);
+      }
+      if (constraint === "role_check") {
+        throw new BadRequest("Quyền hạn không hợp lệ!", details);
+      }
+      if (constraint === "member_fk") {
+        throw new BadRequest("Người dùng không tồn tại!", details);
+      }
+      if (constraint === "workspace_fk") {
+        throw new BadRequest("Workspace không tồn tại!", details);
+      }
+    }
+
+    if (error instanceof Error && "code" in error && error.code === "22P02") {
+      throw new BadRequest("ID không đúng định dạng!");
+    }
+
+    throw error;
   };
 
-  createWorkspace = async (
+  findAllByUser = async (user_id: string): Promise<WorkSpaceSummary[]> => {
+    try {
+      const result = await pool.query<WorkSpaceSummary>(
+        `${workspaceSelect}
+         WHERE actor.member_id = $1 AND actor.status = 'active'
+         ORDER BY COALESCE(w.updated_at, w.created_at) DESC`,
+        [user_id],
+      );
+      return result.rows;
+    } catch (error) {
+      return this.throwDatabaseError(error);
+    }
+  };
+
+  findByIdForUser = async (
+    workspace_id: string,
+    user_id: string,
+  ): Promise<WorkSpaceDetail | null> => {
+    try {
+      const result = await pool.query<WorkSpaceDetail>(
+        `${workspaceSelect}
+         WHERE w.id = $1 AND actor.member_id = $2 AND actor.status = 'active'`,
+        [workspace_id, user_id],
+      );
+      return result.rows[0] ?? null;
+    } catch (error) {
+      return this.throwDatabaseError(error);
+    }
+  };
+
+  findMembershipByUser = async (
+    user_id: string,
+    workspace_id: string,
+  ): Promise<WorkSpaceMemberRecord | null> => {
+    try {
+      const result = await pool.query<WorkSpaceMemberRecord>(
+        `SELECT id, role, status, member_id, workspace_id
+         FROM workspace_members
+         WHERE member_id = $1 AND workspace_id = $2`,
+        [user_id, workspace_id],
+      );
+      return result.rows[0] ?? null;
+    } catch (error) {
+      return this.throwDatabaseError(error);
+    }
+  };
+
+  findMembershipById = async (
+    membership_id: string,
+    workspace_id: string,
+  ): Promise<WorkSpaceMemberRecord | null> => {
+    try {
+      const result = await pool.query<WorkSpaceMemberRecord>(
+        `SELECT id, role, status, member_id, workspace_id
+         FROM workspace_members
+         WHERE id = $1 AND workspace_id = $2`,
+        [membership_id, workspace_id],
+      );
+      return result.rows[0] ?? null;
+    } catch (error) {
+      return this.throwDatabaseError(error);
+    }
+  };
+
+  getMembers = async (workspace_id: string): Promise<WorkSpaceMemberDto[]> => {
+    try {
+      const result = await pool.query<WorkSpaceMemberDto>(
+        `SELECT
+           wm.id, wm.member_id AS user_id, users.name, users.email, users.phone,
+           wm.role, wm.status, wm.joined_at
+         FROM workspace_members wm
+         JOIN users ON users.id = wm.member_id
+         WHERE wm.workspace_id = $1
+         ORDER BY wm.joined_at`,
+        [workspace_id],
+      );
+      return result.rows;
+    } catch (error) {
+      return this.throwDatabaseError(error);
+    }
+  };
+
+  findUserIdByEmail = async (email: string): Promise<string | null> => {
+    const result = await pool.query<{ id: string }>(
+      "SELECT id FROM users WHERE LOWER(email) = LOWER($1)",
+      [email],
+    );
+    return result.rows[0]?.id ?? null;
+  };
+
+  private createWorkspace = async (
     client: PoolClient,
     dto: WorkSpaceRequest,
   ): Promise<WorkSpace> => {
-    const { name, description } = dto;
-    const query = `
-    INSERT INTO workspace(id,name,description) VALUES
-    ($1,$2,$3)
-    RETURNING id,name,description,status,created_at,updated_at
-`;
-
-    const value = [randomUUID(), name, description];
-    const result = await client.query(query, value);
-    return result.rows[0] ?? null;
-  };
-
-  addMemberToWorkspace = async (
-    dto: WorkSpaceMemberRequest,
-  ): Promise<WorkSpaceMember> => {
-    const { role, status, member_id, workspace_id } = dto;
-
-    const query = `
-    INSERT INTO workspace_members(id,role,status,member_id,workspace_id) VALUES
-    ($1,$2,$3,$4,$5)
-    RETURNING id,role,status,joined_at,created_at,updated_at,member_id,workspace_id
-    `;
-
-    const value = [randomUUID(), role, status, member_id, workspace_id];
-
-    try {
-      const result = await pool.query(query, value);
-
-      return result.rows[0] ?? null;
-    } catch (error) {
-      if (error instanceof Error && "constraint" in error) {
-        const details = "details" in error ? error.details : undefined;
-
-        if (error.constraint === "exist_member") {
-          throw new BadRequest(
-            "Người dùng đã tồn tại trong workspace!",
-            details,
-          );
-        }
-
-        if (error.constraint === "status") {
-          throw new BadRequest("Trạng thái không hợp lệ!", details);
-        }
-
-        if (error.constraint === "role_check") {
-          throw new BadRequest("Quyền hạn không hợp lệ!", details);
-        }
-      }
-
-      throw error;
-    }
+    const result = await client.query<WorkSpace>(
+      `INSERT INTO workspace(id, name, description, status)
+       VALUES ($1, $2, $3, COALESCE($4, 'active'))
+       RETURNING id, name, description, status, created_at, updated_at`,
+      [randomUUID(), dto.name, dto.description ?? null, dto.status ?? null],
+    );
+    return result.rows[0]!;
   };
 
   createWorkspaceWithOwner = async (
     workspaceDto: WorkSpaceRequest,
     workspaceMemberDto: WorkSpaceMemberRequest,
-  ) => {
+  ): Promise<WorkSpace> => {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
       const workspace = await this.createWorkspace(client, workspaceDto);
-
-      // create workspace member owner
-
-      const { role, status, member_id } = workspaceMemberDto;
-      const workspace_id = workspace.id;
-      const query = `
-        INSERT INTO workspace_members(id,role,status,member_id,workspace_id) VALUES
-        ($1,$2,$3,$4,$5)
-        RETURNING id,role,status,joined_at,created_at,updated_at,member_id,workspace_id
-    `;
-
-      const value = [randomUUID(), role, status, member_id, workspace_id];
-
-      await client.query(query, value);
-
+      await client.query(
+        `INSERT INTO workspace_members(id, role, status, member_id, workspace_id)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          randomUUID(),
+          workspaceMemberDto.role,
+          workspaceMemberDto.status,
+          workspaceMemberDto.member_id,
+          workspace.id,
+        ],
+      );
       await client.query("COMMIT");
-
       return workspace;
     } catch (error) {
       await client.query("ROLLBACK");
-
-      if (error instanceof Error && "constraint" in error) {
-        const details = "details" in error ? error.details : undefined;
-
-        if (error.constraint === "exist_member") {
-          throw new BadRequest(
-            "Người dùng đã tồn tại trong workspace!",
-            details,
-          );
-        }
-
-        if (error.constraint === "status") {
-          throw new BadRequest("Trạng thái không hợp lệ!", details);
-        }
-
-        if (error.constraint === "role_check") {
-          throw new BadRequest("Quyền hạn không hợp lệ!", details);
-        }
-      }
-
-      console.log("Error : ", error);
-      throw new BadRequest("Tạo Workspace thất bại!");
+      return this.throwDatabaseError(error);
     } finally {
       client.release();
     }
   };
 
-  isOwner = async (user_id: string, workspace_id: string) => {
-    const query = `
-    select member_id, workspace_id , role 
-    from workspace_members
-    where member_id = $1 AND workspace_id = $2 AND role = $3
-    `;
-    const value = [user_id, workspace_id, WorkSpaceMemberRole.OWNER];
+  updateWorkspace = async (
+    workspace_id: string,
+    dto: WorkSpaceUpdateRequest,
+  ): Promise<WorkSpace | null> => {
+    const fields: (keyof WorkSpaceUpdateRequest)[] = [
+      "name",
+      "description",
+      "status",
+    ];
+    const values: unknown[] = [];
+    const setClauses: string[] = [];
 
-    const result = await pool.query(query, value);
+    for (const field of fields) {
+      if (dto[field] !== undefined) {
+        values.push(dto[field]);
+        setClauses.push(`${field} = $${values.length}`);
+      }
+    }
 
-    return result.rows[0] ?? null;
+    if (setClauses.length === 0) return null;
+    values.push(workspace_id);
+
+    try {
+      const result = await pool.query<WorkSpace>(
+        `UPDATE workspace
+         SET ${setClauses.join(", ")}, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $${values.length}
+         RETURNING id, name, description, status, created_at, updated_at`,
+        values,
+      );
+      return result.rows[0] ?? null;
+    } catch (error) {
+      return this.throwDatabaseError(error);
+    }
   };
 
-  existInWorkspace = async (member_id: string, workspace_id: string) => {
-    const query = `
-    SELECT member_id, workspace_id FROM workspace_members 
-    WHERE member_id = $1 AND workspace_id = $2
-    `;
-
-    const value = [member_id, workspace_id];
-
-    const result = await pool.query(query, value);
-
-    return result.rows[0] ?? null;
+  deleteWorkspace = async (workspace_id: string): Promise<boolean> => {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `DELETE FROM assign_task
+         WHERE task_id IN (SELECT id FROM task WHERE workspace_id = $1)`,
+        [workspace_id],
+      );
+      await client.query("DELETE FROM task WHERE workspace_id = $1", [
+        workspace_id,
+      ]);
+      await client.query(
+        "DELETE FROM workspace_members WHERE workspace_id = $1",
+        [workspace_id],
+      );
+      const result = await client.query(
+        "DELETE FROM workspace WHERE id = $1 RETURNING id",
+        [workspace_id],
+      );
+      await client.query("COMMIT");
+      return (result.rowCount ?? 0) > 0;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      return this.throwDatabaseError(error);
+    } finally {
+      client.release();
+    }
   };
 
-  updateStatus = async (
+  addMemberToWorkspace = async (
+    dto: WorkSpaceMemberRequest,
+  ): Promise<WorkSpaceMemberRecord> => {
+    try {
+      const result = await pool.query<WorkSpaceMemberRecord>(
+        `INSERT INTO workspace_members(id, role, status, member_id, workspace_id)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, role, status, member_id, workspace_id`,
+        [randomUUID(), dto.role, dto.status, dto.member_id, dto.workspace_id],
+      );
+      return result.rows[0]!;
+    } catch (error) {
+      return this.throwDatabaseError(error);
+    }
+  };
+
+  updateMember = async (
     member_id: string,
     workspace_id: string,
     status: WorkSpaceMemberStatus,
     role: WorkSpaceMemberRole,
-  ) => {
+  ): Promise<WorkSpaceMemberRecord | null> => {
     const client = await pool.connect();
-
     try {
       await client.query("BEGIN");
-
-      await client.query(
-        `
-        SELECT id
-        FROM workspace
-        WHERE id = $1
-        FOR UPDATE
-        `,
-        [workspace_id],
-      );
-
-      const result = await client.query(
-        `
-        UPDATE workspace_members
-        SET status = $3, role = $4
-        WHERE member_id = $1 AND workspace_id = $2
-        RETURNING id,role,status,joined_at,created_at,updated_at,member_id,workspace_id
-        `,
+      await client.query("SELECT id FROM workspace WHERE id = $1 FOR UPDATE", [
+        workspace_id,
+      ]);
+      const result = await client.query<WorkSpaceMemberRecord>(
+        `UPDATE workspace_members
+         SET status = $3, role = $4, updated_at = CURRENT_TIMESTAMP
+         WHERE member_id = $1 AND workspace_id = $2
+         RETURNING id, role, status, member_id, workspace_id`,
         [member_id, workspace_id, status, role],
       );
-
-      const ownerResult = await client.query(
-        `
-        SELECT EXISTS (
-          SELECT 1
-          FROM workspace_members
-          WHERE workspace_id = $1 AND role = $2
-        ) AS has_owner
-        `,
-        [workspace_id, WorkSpaceMemberRole.OWNER],
-      );
-
-      if (!ownerResult.rows[0]?.has_owner) {
-        throw new BadRequest("Workspace phải có ít nhất một owner!");
-      }
-
+      await this.ensureOwner(client, workspace_id);
       await client.query("COMMIT");
-
       return result.rows[0] ?? null;
     } catch (error) {
       await client.query("ROLLBACK");
-
-      if (error instanceof Error && "constraint" in error) {
-        const details = "details" in error ? error.details : undefined;
-
-        if (error.constraint === "status") {
-          throw new BadRequest("Trạng thái không hợp lệ!", details);
-        }
-
-        if (error.constraint === "role_check") {
-          throw new BadRequest("Quyền hạn không hợp lệ!", details);
-        }
-      }
-
-      throw error;
+      return this.throwDatabaseError(error);
     } finally {
       client.release();
     }
   };
 
-  deleteMember = async (member_id: string, workspace_id: string) => {
+  deleteMember = async (
+    member_id: string,
+    workspace_id: string,
+  ): Promise<WorkSpaceMemberRecord | null> => {
     const client = await pool.connect();
-
     try {
       await client.query("BEGIN");
-
-      await client.query(
-        `
-        SELECT id
-        FROM workspace
-        WHERE id = $1
-        FOR UPDATE
-        `,
-        [workspace_id],
-      );
-
-      const result = await client.query(
-        `
-        DELETE FROM workspace_members
-        WHERE member_id = $1 AND workspace_id = $2
-        RETURNING id,role,status,joined_at,created_at,updated_at,member_id,workspace_id
-        `,
+      await client.query("SELECT id FROM workspace WHERE id = $1 FOR UPDATE", [
+        workspace_id,
+      ]);
+      const result = await client.query<WorkSpaceMemberRecord>(
+        `DELETE FROM workspace_members
+         WHERE member_id = $1 AND workspace_id = $2
+         RETURNING id, role, status, member_id, workspace_id`,
         [member_id, workspace_id],
       );
-
-      const ownerResult = await client.query(
-        `
-        SELECT EXISTS (
-          SELECT 1
-          FROM workspace_members
-          WHERE workspace_id = $1 AND role = $2
-        ) AS has_owner
-        `,
-        [workspace_id, WorkSpaceMemberRole.OWNER],
-      );
-
-      if (!ownerResult.rows[0]?.has_owner) {
-        throw new BadRequest("Workspace phải có ít nhất một owner!");
-      }
-
+      await this.ensureOwner(client, workspace_id);
       await client.query("COMMIT");
-
       return result.rows[0] ?? null;
     } catch (error) {
       await client.query("ROLLBACK");
-      throw error;
+      return this.throwDatabaseError(error);
     } finally {
       client.release();
+    }
+  };
+
+  private ensureOwner = async (
+    client: PoolClient,
+    workspace_id: string,
+  ): Promise<void> => {
+    const result = await client.query<{ has_owner: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM workspace_members
+         WHERE workspace_id = $1 AND role = $2
+       ) AS has_owner`,
+      [workspace_id, WorkSpaceMemberRole.OWNER],
+    );
+    if (!result.rows[0]?.has_owner) {
+      throw new BadRequest("Workspace phải có ít nhất một owner!");
     }
   };
 }

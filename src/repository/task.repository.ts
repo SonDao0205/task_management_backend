@@ -9,6 +9,7 @@ import type {
 import type {
   AssignTask,
   Task,
+  TaskListItem,
   TaskWithAssignees,
 } from "../types/entity/task.types.js";
 import type { WorkSpaceMemberRecord } from "../types/entity/workspace.types.js";
@@ -51,24 +52,94 @@ class TaskRepository {
     throw error;
   };
 
-  getAllTask = async (workspace_id: string): Promise<Task[]> => {
+  getAllTask = async (workspace_id: string): Promise<TaskListItem[]> => {
     try {
       const query = `
-        SELECT id,title,description,priority,start_at,end_at,status,
-          created_at,updated_at,created_by,workspace_id
-        FROM task
-        WHERE workspace_id = $1
-        ORDER BY created_at DESC
+        SELECT
+          t.id,t.title,t.description,t.priority,t.start_at,t.end_at,t.status,
+          t.created_at,t.updated_at,t.created_by,t.workspace_id,
+          COALESCE(
+            ARRAY(
+              SELECT assignment.member_id
+              FROM assign_task assignment
+              WHERE assignment.task_id = t.id
+              ORDER BY assignment.member_id
+            ), ARRAY[]::uuid[]
+          ) AS member_ids,
+          COALESCE(
+            (
+              SELECT jsonb_agg(
+                jsonb_build_object(
+                  'member_id', member.id,
+                  'user_id', users.id,
+                  'name', users.name,
+                  'email', users.email
+                ) ORDER BY users.name
+              )
+              FROM assign_task assignment
+              JOIN workspace_members member ON member.id = assignment.member_id
+              JOIN users ON users.id = member.member_id
+              WHERE assignment.task_id = t.id
+            ), '[]'::jsonb
+          ) AS assignees
+        FROM task t
+        WHERE t.workspace_id = $1
+        ORDER BY t.created_at DESC
       `;
 
-      const result = await pool.query<Task>(query, [workspace_id]);
+      const result = await pool.query<TaskListItem>(query, [workspace_id]);
       return result.rows;
     } catch (error) {
       return this.throwDatabaseError(error);
     }
   };
 
-  findById = async (task_id: string): Promise<TaskWithAssignees | null> => {
+  getMyTasks = async (user_id: string): Promise<TaskListItem[]> => {
+    try {
+      const query = `
+        SELECT
+          t.id,t.title,t.description,t.priority,t.start_at,t.end_at,t.status,
+          t.created_at,t.updated_at,t.created_by,t.workspace_id,
+          workspace.name AS workspace_name,
+          COALESCE(
+            ARRAY(
+              SELECT assignment.member_id
+              FROM assign_task assignment
+              WHERE assignment.task_id = t.id
+              ORDER BY assignment.member_id
+            ), ARRAY[]::uuid[]
+          ) AS member_ids,
+          COALESCE(
+            (
+              SELECT jsonb_agg(
+                jsonb_build_object(
+                  'member_id', member.id,
+                  'user_id', users.id,
+                  'name', users.name,
+                  'email', users.email
+                ) ORDER BY users.name
+              )
+              FROM assign_task assignment
+              JOIN workspace_members member ON member.id = assignment.member_id
+              JOIN users ON users.id = member.member_id
+              WHERE assignment.task_id = t.id
+            ), '[]'::jsonb
+          ) AS assignees
+        FROM task t
+        JOIN workspace ON workspace.id = t.workspace_id
+        JOIN assign_task mine ON mine.task_id = t.id
+        JOIN workspace_members current_member ON current_member.id = mine.member_id
+        WHERE current_member.member_id = $1 AND current_member.status = 'active'
+        ORDER BY t.end_at, t.created_at DESC
+      `;
+      const result = await pool.query<TaskListItem>(query, [user_id]);
+      return result.rows;
+    } catch (error) {
+      return this.throwDatabaseError(error);
+    }
+  };
+
+  findById = async (task_id: string): Promise<TaskListItem | null> => {
     try {
       const query = `
         SELECT
@@ -82,12 +153,28 @@ class TaskRepository {
               ORDER BY a.member_id
             ),
             ARRAY[]::uuid[]
-          ) AS member_ids
+          ) AS member_ids,
+          COALESCE(
+            (
+              SELECT jsonb_agg(
+                jsonb_build_object(
+                  'member_id', member.id,
+                  'user_id', users.id,
+                  'name', users.name,
+                  'email', users.email
+                ) ORDER BY users.name
+              )
+              FROM assign_task assignment
+              JOIN workspace_members member ON member.id = assignment.member_id
+              JOIN users ON users.id = member.member_id
+              WHERE assignment.task_id = t.id
+            ), '[]'::jsonb
+          ) AS assignees
         FROM task t
         WHERE t.id = $1
       `;
 
-      const result = await pool.query<TaskWithAssignees>(query, [task_id]);
+      const result = await pool.query<TaskListItem>(query, [task_id]);
       return result.rows[0] ?? null;
     } catch (error) {
       return this.throwDatabaseError(error);
@@ -362,15 +449,19 @@ class TaskRepository {
     }
   };
 
-  deleteMember = async (task_id: string, workspace_id: string) => {
-    const query = `
-    DELETE FROM task
-    WHERE workspace_id = $1 AND id = $2
-    `;
-
-    const value = [workspace_id, task_id];
-
-    const result = await pool.query(query, value);
+  deleteTask = async (task_id: string): Promise<Task | null> => {
+    try {
+      const result = await pool.query<Task>(
+        `DELETE FROM task
+         WHERE id = $1
+         RETURNING id,title,description,priority,start_at,end_at,status,
+           created_at,updated_at,created_by,workspace_id`,
+        [task_id],
+      );
+      return result.rows[0] ?? null;
+    } catch (error) {
+      return this.throwDatabaseError(error);
+    }
   };
 }
 
