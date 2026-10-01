@@ -15,8 +15,17 @@ import type {
   UserWithPassword,
 } from "../types/entity/user.types.js";
 import TokenService from "./token.service.js";
-import type { UUID } from "node:crypto";
 import BlackListRepository from "../repository/blacklist.repository.js";
+
+type LoginSession = {
+  response: LoginResponse;
+  refresh_token: string;
+};
+
+type RefreshedSession = {
+  access_token: string;
+  refresh_token: string;
+};
 
 class AuthService {
   private static instance: AuthService;
@@ -72,13 +81,13 @@ class AuthService {
     return response;
   };
 
-  login = async (dto: LoginRequest): Promise<LoginResponse> => {
+  login = async (dto: LoginRequest): Promise<LoginSession> => {
     const { input, password } = dto;
     if (!input || !password) {
       throw new BadRequest(`Vui lòng nhập đầy đủ thông tin!`);
     }
 
-    const findUser: UserWithPassword = input.includes("@gmail.com")
+    const findUser: UserWithPassword = input.includes("@")
       ? await this.userRepository.findByEmail(input)
       : await this.userRepository.findByPhone(input);
 
@@ -102,7 +111,7 @@ class AuthService {
       user: publicUser,
       access_token: access_token,
     };
-    return response;
+    return { response, refresh_token };
   };
 
   getUser = async (user_id: string): Promise<PublicUser> => {
@@ -114,11 +123,20 @@ class AuthService {
     return publicUser;
   };
 
-  refreshSession = async (user_id: string, refresh_token: string) => {
+  refreshSession = async (
+    refresh_token: string,
+  ): Promise<RefreshedSession> => {
+    if (!refresh_token) {
+      throw new Authenticate("Phiên đăng nhập không hợp lệ hoặc đã hết hạn!");
+    }
+
+    const { payload } =
+      await this.tokenService.verifyRefreshToken(refresh_token);
+    const user_id = String(payload.user_id);
     const findUser: User = await this.userRepository.findById(user_id);
 
-    if (!findUser || !refresh_token || !findUser.refresh_token) {
-      throw new BadRequest("Dữ liệu không hợp lệ!");
+    if (!findUser || !findUser.refresh_token) {
+      throw new Authenticate("Phiên đăng nhập không hợp lệ hoặc đã hết hạn!");
     }
 
     if (!(await this.verifyHash(refresh_token, findUser.refresh_token))) {
@@ -137,7 +155,7 @@ class AuthService {
     );
     await this.blackListRepository.setKey(refresh_token);
 
-    return { access_token: new_access_token, refresh_token: new_access_token };
+    return { access_token: new_access_token, refresh_token: new_refresh_token };
   };
 
   logOut = async (user_id: string, access_token: string) => {

@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express, { type Request, type Response } from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import { pool } from "./config/database.js";
 import { userRouter } from "./router/userRouter.js";
 import { errorHandler } from "./exception/error_handler.js";
@@ -15,9 +16,25 @@ const bootstrap = async () => {
   const app = express();
   const PORT = process.env.PORT;
 
-  app.use(cors());
+  const allowedOrigins = (process.env.FRONTEND_URL ?? "http://localhost:3000")
+    .split(",")
+    .map((origin) => origin.trim());
+
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+          return;
+        }
+        callback(new Error("Origin không được CORS cho phép"));
+      },
+      credentials: true,
+    }),
+  );
+  app.use(cookieParser());
   app.use(express.json());
-  app.use(logger);
+  // app.use(logger);
 
   // router
   const prefix = "/api/v1";
