@@ -11,6 +11,8 @@ import { redisClient } from "./config/redis.js";
 import { workspaceRouter } from "./router/workspaceRouter.js";
 import { logger } from "./middleware/logger.js";
 import { taskRouter } from "./router/taskRouter.js";
+import { connectSocket } from "./config/socket.js";
+import { commentRouter } from "./router/commentRouter.js";
 
 const bootstrap = async () => {
   const app = express();
@@ -42,6 +44,7 @@ const bootstrap = async () => {
   app.use(prefix, authRouter);
   app.use(prefix, workspaceRouter);
   app.use(prefix, taskRouter);
+  app.use(prefix, commentRouter);
 
   app.use((_req, _res, next) => {
     next(new NotFound("API endpoint not found"));
@@ -68,9 +71,11 @@ const bootstrap = async () => {
     process.exit(1);
   }
 
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`Server is running in port : ${PORT} `);
   });
+
+  connectSocket(server);
 
   app.use(errorHandler);
 };

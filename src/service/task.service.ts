@@ -175,6 +175,11 @@ class TaskService {
     return detail;
   };
 
+  getTaskExist = async (task_id: string): Promise<Task> => {
+    const task = await this.getTaskOrThrow(task_id);
+    return task;
+  };
+
   createTask = async (dto: CreateTaskRequest, actor_user_id: string) => {
     if (!dto || typeof dto !== "object") {
       throw new BadRequest("Dữ liệu task không hợp lệ!");

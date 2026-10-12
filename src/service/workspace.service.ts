@@ -104,9 +104,15 @@ class WorkSpaceService {
       user_id,
     );
     if (!workspace) {
-      throw new NotFound("Workspace không tồn tại hoặc bạn không có quyền truy cập!");
+      throw new NotFound(
+        "Workspace không tồn tại hoặc bạn không có quyền truy cập!",
+      );
     }
     return workspace;
+  };
+
+  getMembership = async (workspace_id: string, user_id: string) => {
+    return await this.getActiveMembership(user_id, workspace_id);
   };
 
   getMembers = async (workspace_id: string, user_id: string) => {
@@ -189,7 +195,8 @@ class WorkSpaceService {
     user_id: string,
   ): Promise<void> => {
     await this.requireOwner(user_id, workspace_id);
-    const deleted = await this.workSpaceRepository.deleteWorkspace(workspace_id);
+    const deleted =
+      await this.workSpaceRepository.deleteWorkspace(workspace_id);
     if (!deleted) throw new NotFound("Workspace không tồn tại!");
   };
 
@@ -244,8 +251,14 @@ class WorkSpaceService {
       membership_id,
       workspace_id,
     );
-    if (!target) throw new NotFound("Thành viên không tồn tại trong workspace!");
-    return this.updateMemberByUserId(owner_id, workspace_id, target.member_id, dto);
+    if (!target)
+      throw new NotFound("Thành viên không tồn tại trong workspace!");
+    return this.updateMemberByUserId(
+      owner_id,
+      workspace_id,
+      target.member_id,
+      dto,
+    );
   };
 
   updateMemberByUserId = async (
@@ -271,7 +284,8 @@ class WorkSpaceService {
       dto.status,
       dto.role,
     );
-    if (!updated) throw new NotFound("Thành viên không tồn tại trong workspace!");
+    if (!updated)
+      throw new NotFound("Thành viên không tồn tại trong workspace!");
     return updated;
   };
 
@@ -286,7 +300,8 @@ class WorkSpaceService {
       membership_id,
       workspace_id,
     );
-    if (!target) throw new NotFound("Thành viên không tồn tại trong workspace!");
+    if (!target)
+      throw new NotFound("Thành viên không tồn tại trong workspace!");
     await this.deleteMemberByUserId(owner_id, workspace_id, target.member_id);
   };
 
@@ -304,7 +319,8 @@ class WorkSpaceService {
       member_id,
       workspace_id,
     );
-    if (!deleted) throw new NotFound("Thành viên không tồn tại trong workspace!");
+    if (!deleted)
+      throw new NotFound("Thành viên không tồn tại trong workspace!");
   };
 }
 

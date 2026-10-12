@@ -45,3 +45,15 @@ export class Authorization extends Error {
     Error.captureStackTrace(this, this.constructor);
   }
 }
+
+export class BadConnection extends Error {
+  constructor(
+    message: string,
+    public details?: unknown,
+  ) {
+    super(message);
+    this.name = "Authorization";
+
+    Error.captureStackTrace(this, this.constructor);
+  }
+}

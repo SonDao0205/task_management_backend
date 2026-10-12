@@ -1,5 +1,11 @@
 import type { ErrorRequestHandler, Response } from "express";
-import { Authenticate, Authorization, BadRequest, NotFound } from "./errors.js";
+import {
+  Authenticate,
+  Authorization,
+  BadConnection,
+  BadRequest,
+  NotFound,
+} from "./errors.js";
 import type { ApiResponseData } from "../types/dto/res/response.js";
 
 export const errorHandler: ErrorRequestHandler = (
@@ -45,6 +51,16 @@ export const errorHandler: ErrorRequestHandler = (
 
   if (error instanceof Authorization) {
     res.status(403).json({
+      success: false,
+      message: error.message,
+      data: null,
+      error: String(error.details),
+    });
+    return;
+  }
+
+  if (error instanceof BadConnection) {
+    res.status(500).json({
       success: false,
       message: error.message,
       data: null,
