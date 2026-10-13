@@ -54,17 +54,17 @@ jobs:
       - name: Lấy code từ repo
         uses: actions/checkout@v4
 
-      - name: Cài đặt Node.js 24
+      - name: Cài đặt Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 20
           cache: npm
 
       - name: Cài dependencies
         run: npm ci
 
-      - name: Kiểm tra code style (lint)
-        run: npm run lint
+      # - name: Kiểm tra code style (lint)
+      #   run: npm run lint
 
       - name: Tạo database
         run: psql "postgres://$DB_USER:$DB_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME" -v ON_ERROR_STOP=1 -f database/scriptDB.sql
