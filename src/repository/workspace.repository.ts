@@ -16,6 +16,7 @@ import {
   type WorkSpaceMemberStatus,
   type WorkSpaceSummary,
 } from "../types/entity/workspace.types.js";
+import GroupRepository from "./group.repository.js";
 
 const workspaceSelect = `
   SELECT
@@ -51,6 +52,11 @@ const workspaceSelect = `
 
 class WorkSpaceRepository {
   private static instance: WorkSpaceRepository;
+  private groupRepository: GroupRepository;
+
+  constructor() {
+    this.groupRepository = GroupRepository.getInstance();
+  }
 
   public static getInstance = (): WorkSpaceRepository => {
     if (!WorkSpaceRepository.instance) {
@@ -195,10 +201,13 @@ class WorkSpaceRepository {
     workspaceDto: WorkSpaceRequest,
     workspaceMemberDto: WorkSpaceMemberRequest,
   ): Promise<WorkSpace> => {
+    const groupRepository = GroupRepository.getInstance();
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+
       const workspace = await this.createWorkspace(client, workspaceDto);
+
       await client.query(
         `INSERT INTO workspace_members(id, role, status, member_id, workspace_id)
          VALUES ($1, $2, $3, $4, $5)`,
@@ -210,6 +219,18 @@ class WorkSpaceRepository {
           workspace.id,
         ],
       );
+
+      const group = await groupRepository.createGroupChat(
+        workspace.name,
+        workspace.id,
+        client,
+      );
+      await groupRepository.addMemberToGroup(
+        group.id,
+        workspaceMemberDto.member_id,
+        client,
+      );
+
       await client.query("COMMIT");
       return workspace;
     } catch (error) {

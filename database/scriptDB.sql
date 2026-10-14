@@ -96,3 +96,40 @@ create table comments (
 	constraint task_fk foreign key (task_id) references task (id) on delete cascade ,
 	constraint parent_fk foreign key (parent_id) references comments (id) on delete cascade
 );
+
+
+
+create table group_chat(
+	id UUID,
+	name varchar(255) not null,
+	workspace_id UUID,
+	created_at timestamp not null default current_timestamp,
+	updated_at timestamp,
+	
+	constraint group_pk primary key(id),
+	constraint workspace_fk foreign key (workspace_id) references workspace (id) on delete cascade
+);
+
+create table group_members(
+	id UUID,
+	member_id UUID,
+	group_id UUID not null,
+	created_at timestamp not null default current_timestamp,
+	
+	constraint group_member_pk primary key (id),
+	constraint group_fk foreign key (group_id) references group_chat (id) on delete cascade ,
+	constraint member_fk foreign key (member_id) references users (id)
+);
+
+
+create table message(
+	id UUID,
+	content TEXT not null,
+	created_by UUID not null,
+	group_id UUID,
+	created_at timestamp not null default current_timestamp,
+	
+	constraint message_id primary key (id), 
+	constraint created_by_fk foreign key (created_by) references users (id),
+	constraint group_fk foreign key (group_id) references group_chat(id) on delete cascade
+);
