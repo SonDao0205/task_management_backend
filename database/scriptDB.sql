@@ -133,3 +133,36 @@ create table message(
 	constraint created_by_fk foreign key (created_by) references users (id),
 	constraint group_fk foreign key (group_id) references group_chat(id) on delete cascade
 );
+
+CREATE INDEX IF NOT EXISTS idx_task_workspace_created_at
+	ON task (workspace_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_workspace_members_workspace_joined_at
+	ON workspace_members (workspace_id, joined_at);
+
+CREATE INDEX IF NOT EXISTS idx_assign_task_task_member
+	ON assign_task (task_id, member_id);
+
+CREATE INDEX IF NOT EXISTS idx_assign_task_member_task
+	ON assign_task (member_id, task_id);
+
+CREATE INDEX IF NOT EXISTS idx_group_chat_workspace
+	ON group_chat (workspace_id);
+
+CREATE INDEX IF NOT EXISTS idx_group_members_member_group
+	ON group_members (member_id, group_id);
+
+CREATE INDEX IF NOT EXISTS idx_group_members_group_member
+	ON group_members (group_id, member_id);
+
+CREATE INDEX IF NOT EXISTS idx_message_group_created_id
+	ON message (group_id, created_at DESC, id DESC);
+
+CREATE INDEX IF NOT EXISTS idx_comments_task_workspace
+	ON comments (task_id, workspace_id);
+
+CREATE INDEX IF NOT EXISTS idx_comments_parent
+	ON comments (parent_id);
+
+CREATE INDEX IF NOT EXISTS idx_users_lower_email
+	ON users (LOWER(email));
