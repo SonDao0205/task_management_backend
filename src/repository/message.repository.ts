@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { pool } from "../config/database.js";
 import { BadRequest } from "../exception/errors.js";
 
@@ -89,8 +90,8 @@ class MessageRepository {
     try {
       const query = `
         WITH inserted AS (
-          INSERT INTO message (content, created_by, group_id)
-          VALUES ($1, $2, $3)
+          INSERT INTO message (id, content, created_by, group_id)
+          VALUES ($1, $2, $3, $4)
           RETURNING *
         )
         SELECT
@@ -102,7 +103,7 @@ class MessageRepository {
         JOIN group_chat AS g ON g.id = i.group_id;
       `;
 
-      const value = [content, created_by_id, group_chat_id];
+      const value = [randomUUID(), content, created_by_id, group_chat_id];
 
       const result = await pool.query(query, value);
 

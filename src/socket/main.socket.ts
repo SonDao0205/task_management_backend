@@ -8,6 +8,7 @@ import WorkspaceHandler from "./workspace.handler.js";
 import CommentHandler from "./comment.handler.js";
 import type { MessageRequest } from "../types/dto/req/message.request.js";
 import MessageHandler from "./message.handler.js";
+import { userRoom } from "./rooms.js";
 
 const workspaceHandler = WorkspaceHandler.getInstance();
 const commentHandler = CommentHandler.getInstance();
@@ -16,18 +17,21 @@ const messageHandler = MessageHandler.getInstance();
 export const mainSocket = (io: Server) => {
   io.on("connection", (socket) => {
     console.log("Client Kết nối thành công : ", socket.id);
+    const userId = String(socket.data.userId);
+    void socket.join(userRoom(userId));
+
+    void messageHandler.joinUserGroups(socket).catch((error: unknown) => {
+      console.error("Không thể tham gia các room chat:", error);
+    });
 
     // Đăng ký socket khi vào workspace để đọc comment
     socket.on("join-workspace", async (data: WorkspaceData) => {
-      const joinWorkspace = await workspaceHandler.joinWorkspace(data, socket);
+      await workspaceHandler.joinWorkspace(data, socket);
     });
 
     // Huỷ Đăng ký socket khi rời workspace
     socket.on("leave-workspace", async (data: WorkspaceData) => {
-      const leaveWorkspace = await workspaceHandler.leaveWorkspace(
-        data,
-        socket,
-      );
+      await workspaceHandler.leaveWorkspace(data, socket);
     });
 
     // Lắng nghe comment mới
@@ -35,9 +39,29 @@ export const mainSocket = (io: Server) => {
       const newComment = await commentHandler.newComment(data, io);
     });
 
-    // Lắng nghe 1 message mới
+    socket.on("join-group", async (data: { group_chat_id: string }) => {
+      try {
+        await messageHandler.joinGroup(data.group_chat_id, socket);
+      } catch (error) {
+        socket.emit("chat:error", {
+          message:
+            error instanceof Error
+              ? error.message
+              : "Không thể tham gia group chat!",
+        });
+      }
+    });
+
+    // Lưu và phát tin nhắn mới cho các thành viên trong group chat.
     socket.on("newMessage", async (data: MessageRequest) => {
-      const newMessage = await messageHandler.newMessage(data, socket);
+      try {
+        await messageHandler.newMessage(data, socket, io);
+      } catch (error) {
+        socket.emit("chat:error", {
+          message:
+            error instanceof Error ? error.message : "Không thể gửi tin nhắn!",
+        });
+      }
     });
 
     // TODO : Lắng nghe thông báo khi có người vào / ra khỏi groupchat

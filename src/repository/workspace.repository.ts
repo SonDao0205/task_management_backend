@@ -9,14 +9,16 @@ import type {
 } from "../types/dto/req/workspace.request.js";
 import {
   WorkSpaceMemberRole,
+  WorkSpaceMemberStatus,
   type WorkSpace,
   type WorkSpaceDetail,
   type WorkSpaceMemberDto,
   type WorkSpaceMemberRecord,
-  type WorkSpaceMemberStatus,
   type WorkSpaceSummary,
 } from "../types/entity/workspace.types.js";
 import GroupRepository from "./group.repository.js";
+import { getSocketServer } from "../socket/runtime.js";
+import { groupRoom, userRoom } from "../socket/rooms.js";
 
 const workspaceSelect = `
   SELECT
@@ -310,16 +312,43 @@ class WorkSpaceRepository {
   addMemberToWorkspace = async (
     dto: WorkSpaceMemberRequest,
   ): Promise<WorkSpaceMemberRecord> => {
+    const client = await pool.connect();
     try {
-      const result = await pool.query<WorkSpaceMemberRecord>(
+      await client.query("BEGIN");
+      const result = await client.query<WorkSpaceMemberRecord>(
         `INSERT INTO workspace_members(id, role, status, member_id, workspace_id)
          VALUES ($1, $2, $3, $4, $5)
          RETURNING id, role, status, member_id, workspace_id`,
         [randomUUID(), dto.role, dto.status, dto.member_id, dto.workspace_id],
       );
+      const groups =
+        dto.status === WorkSpaceMemberStatus.ACTIVE
+          ? await client.query<{ id: string }>(
+              "SELECT id FROM group_chat WHERE workspace_id = $1",
+              [dto.workspace_id],
+            )
+          : { rows: [] as { id: string }[] };
+      for (const group of groups.rows) {
+        await this.groupRepository.addMemberToGroup(
+          group.id,
+          dto.member_id,
+          client,
+        );
+      }
+      await client.query("COMMIT");
+      if (dto.status === WorkSpaceMemberStatus.ACTIVE) {
+        await this.updateSocketGroupAccess(
+          dto.member_id,
+          groups.rows.map(({ id }) => id),
+          true,
+        );
+      }
       return result.rows[0]!;
     } catch (error) {
+      await client.query("ROLLBACK");
       return this.throwDatabaseError(error);
+    } finally {
+      client.release();
     }
   };
 
@@ -335,6 +364,10 @@ class WorkSpaceRepository {
       await client.query("SELECT id FROM workspace WHERE id = $1 FOR UPDATE", [
         workspace_id,
       ]);
+      const groups = await client.query<{ id: string }>(
+        "SELECT id FROM group_chat WHERE workspace_id = $1",
+        [workspace_id],
+      );
       const result = await client.query<WorkSpaceMemberRecord>(
         `UPDATE workspace_members
          SET status = $3, role = $4, updated_at = CURRENT_TIMESTAMP
@@ -342,8 +375,35 @@ class WorkSpaceRepository {
          RETURNING id, role, status, member_id, workspace_id`,
         [member_id, workspace_id, status, role],
       );
+      if (result.rows[0]) {
+        for (const group of groups.rows) {
+          if (status === WorkSpaceMemberStatus.ACTIVE) {
+            await client.query(
+              `INSERT INTO group_members(id, member_id, group_id)
+               SELECT $1, $2, $3
+               WHERE NOT EXISTS (
+                 SELECT 1 FROM group_members
+                 WHERE member_id = $2 AND group_id = $3
+               )`,
+              [randomUUID(), member_id, group.id],
+            );
+          } else {
+            await client.query(
+              "DELETE FROM group_members WHERE member_id = $1 AND group_id = $2",
+              [member_id, group.id],
+            );
+          }
+        }
+      }
       await this.ensureOwner(client, workspace_id);
       await client.query("COMMIT");
+      if (result.rows[0]) {
+        await this.updateSocketGroupAccess(
+          member_id,
+          groups.rows.map(({ id }) => id),
+          status === WorkSpaceMemberStatus.ACTIVE,
+        );
+      }
       return result.rows[0] ?? null;
     } catch (error) {
       await client.query("ROLLBACK");
@@ -363,6 +423,18 @@ class WorkSpaceRepository {
       await client.query("SELECT id FROM workspace WHERE id = $1 FOR UPDATE", [
         workspace_id,
       ]);
+      const groups = await client.query<{ id: string }>(
+        "SELECT id FROM group_chat WHERE workspace_id = $1",
+        [workspace_id],
+      );
+      await client.query(
+        `DELETE FROM group_members gm
+         USING group_chat gc
+         WHERE gm.group_id = gc.id
+           AND gc.workspace_id = $2
+           AND gm.member_id = $1`,
+        [member_id, workspace_id],
+      );
       const result = await client.query<WorkSpaceMemberRecord>(
         `DELETE FROM workspace_members
          WHERE member_id = $1 AND workspace_id = $2
@@ -371,6 +443,13 @@ class WorkSpaceRepository {
       );
       await this.ensureOwner(client, workspace_id);
       await client.query("COMMIT");
+      if (result.rows[0]) {
+        await this.updateSocketGroupAccess(
+          member_id,
+          groups.rows.map(({ id }) => id),
+          false,
+        );
+      }
       return result.rows[0] ?? null;
     } catch (error) {
       await client.query("ROLLBACK");
@@ -393,6 +472,27 @@ class WorkSpaceRepository {
     );
     if (!result.rows[0]?.has_owner) {
       throw new BadRequest("Workspace phải có ít nhất một owner!");
+    }
+  };
+
+  private updateSocketGroupAccess = async (
+    user_id: string,
+    group_ids: string[],
+    can_join: boolean,
+  ) => {
+    if (group_ids.length === 0) return;
+    const server = getSocketServer();
+    if (!server) return;
+    const userSockets = server.in(userRoom(user_id));
+    const rooms = group_ids.map(groupRoom);
+    try {
+      if (can_join) {
+        await userSockets.socketsJoin(rooms);
+      } else {
+        await userSockets.socketsLeave(rooms);
+      }
+    } catch (error) {
+      console.error("Không thể đồng bộ quyền truy cập room chat:", error);
     }
   };
 }

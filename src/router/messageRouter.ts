@@ -5,7 +5,7 @@ import { authenticate } from "../middleware/authenticate.js";
 export const messageRouter = Router();
 const messageController = MessageController.getInstance();
 
-messageRouter.get(
+messageRouter.post(
   "/groups/messages",
   authenticate,
   messageController.getMessages,

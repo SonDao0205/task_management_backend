@@ -53,6 +53,21 @@ class GroupRepository {
     }
   };
 
+  getUserGroupIds = async (userId: string): Promise<string[]> => {
+    try {
+      const result = await pool.query<{ id: string }>(
+        `SELECT gc.id
+         FROM group_chat gc
+         JOIN group_members gm ON gm.group_id = gc.id
+         WHERE gm.member_id = $1`,
+        [userId],
+      );
+      return result.rows.map(({ id }) => id);
+    } catch (error) {
+      return this.throwDatabaseError(error);
+    }
+  };
+
   createGroupChat = async (
     name: string,
     workspaceId: string,
@@ -121,10 +136,9 @@ class GroupRepository {
       const query = `
         SELECT EXISTS (
           SELECT 1
-          FROM group_member AS gm
-          JOIN workspace_member AS wm ON wm.id = gm.member_id
-          WHERE wm.user_id = $1
-            AND gm.group_chat_id = $2
+          FROM group_members AS gm
+          WHERE gm.member_id = $1
+            AND gm.group_id = $2
         ) AS is_member;
         `;
 

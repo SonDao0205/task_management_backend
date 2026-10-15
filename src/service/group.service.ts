@@ -46,6 +46,10 @@ class GroupService {
     return response;
   };
 
+  getGroupIdsByUser = async (userId: string): Promise<string[]> => {
+    return this.groupRepository.getUserGroupIds(userId);
+  };
+
   isExistInGroup = async (userId: string, group_chat_id: string) => {
     const exist = await this.groupRepository.inGroupChat(userId, group_chat_id);
 
