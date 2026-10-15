@@ -36,11 +36,14 @@ class GroupRepository {
   getUserGroups = async (userId: string, limit: number, offset: number) => {
     try {
       const result = await pool.query(
-        `SELECT gc.*
-       FROM group_chat gc
-       JOIN group_members gm ON gm.group_id = gc.id
-       WHERE gm.member_id = $1
-       LIMIT $2 OFFSET $3`,
+        `SELECT
+            gc.*,
+            to_jsonb(w) AS workspace
+        FROM group_chat gc
+        JOIN group_members gm ON gm.group_id = gc.id
+        JOIN workspace w ON w.id = gc.workspace_id
+        WHERE gm.member_id = $1
+        LIMIT $2 OFFSET $3`,
         [userId, limit, offset],
       );
 
@@ -71,10 +74,12 @@ class GroupRepository {
   existGroupByWorkspace = async (workspaceId: string) => {
     try {
       const result = await pool.query(
-        `select 1 from group_chat where workspace_id = $1`,
+        `SELECT EXISTS (
+          SELECT 1 FROM group_chat WHERE workspace_id = $1
+        ) AS is_exist`,
         [workspaceId],
       );
-      return result.rows;
+      return result.rows[0].is_exist as boolean;
     } catch (error) {
       return this.throwDatabaseError(error);
     }
@@ -106,6 +111,28 @@ class GroupRepository {
         [memberId, groupId],
       );
       return (result.rowCount ?? 0) > 0;
+    } catch (error) {
+      return this.throwDatabaseError(error);
+    }
+  };
+
+  inGroupChat = async (userId: string, groupId: string) => {
+    try {
+      const query = `
+        SELECT EXISTS (
+          SELECT 1
+          FROM group_member AS gm
+          JOIN workspace_member AS wm ON wm.id = gm.member_id
+          WHERE wm.user_id = $1
+            AND gm.group_chat_id = $2
+        ) AS is_member;
+        `;
+
+      const value = [userId, groupId];
+
+      const result = await pool.query(query, value);
+
+      return result.rows[0].is_member as boolean;
     } catch (error) {
       return this.throwDatabaseError(error);
     }

@@ -14,6 +14,7 @@ import { taskRouter } from "./router/taskRouter.js";
 import { connectSocket } from "./config/socket.js";
 import { commentRouter } from "./router/commentRouter.js";
 import { groupRouter } from "./router/groupRouter.js";
+import { messageRouter } from "./router/messageRouter.js";
 
 const bootstrap = async () => {
   const app = express();
@@ -47,6 +48,7 @@ const bootstrap = async () => {
   app.use(prefix, taskRouter);
   app.use(prefix, commentRouter);
   app.use(prefix, groupRouter);
+  app.use(prefix, messageRouter);
 
   app.use((_req, _res, next) => {
     next(new NotFound("API endpoint not found"));

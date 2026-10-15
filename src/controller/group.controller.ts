@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import type { ApiResponseData } from "../types/dto/res/response.js";
 import type { GroupChat } from "../types/entity/group_chat.types.js";
 import GroupService from "../service/group.service.js";
+import type { GroupChatResponse } from "../types/dto/res/group_chat.response.js";
 
 class GroupController {
   private static instance: GroupController;
@@ -20,7 +21,7 @@ class GroupController {
 
   getGroups = async (
     req: Request,
-    res: Response<ApiResponseData<GroupChat[]>>,
+    res: Response<ApiResponseData<GroupChatResponse[]>>,
   ) => {
     const userId = req.auth?.user_id;
     const { limit, offset } = req.params;

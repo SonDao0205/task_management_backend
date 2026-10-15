@@ -6,9 +6,12 @@ import type {
 } from "../types/entity/socket.data.types.js";
 import WorkspaceHandler from "./workspace.handler.js";
 import CommentHandler from "./comment.handler.js";
+import type { MessageRequest } from "../types/dto/req/message.request.js";
+import MessageHandler from "./message.handler.js";
 
 const workspaceHandler = WorkspaceHandler.getInstance();
 const commentHandler = CommentHandler.getInstance();
+const messageHandler = MessageHandler.getInstance();
 
 export const mainSocket = (io: Server) => {
   io.on("connection", (socket) => {
@@ -31,6 +34,16 @@ export const mainSocket = (io: Server) => {
     socket.on("commented", async (data: CommentData) => {
       const newComment = await commentHandler.newComment(data, io);
     });
+
+    // Lắng nghe 1 message mới
+    socket.on("newMessage", async (data: MessageRequest) => {
+      const newMessage = await messageHandler.newMessage(data, socket);
+    });
+
+    // TODO : Lắng nghe thông báo khi có người vào / ra khỏi groupchat
+    socket.on("addMember", async () => {});
+
+    socket.on("deleteMember", async () => {});
 
     // Kết nối socket lỗi
     socket.on("connect_error", () => {
